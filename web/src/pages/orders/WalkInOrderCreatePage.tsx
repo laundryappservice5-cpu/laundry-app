@@ -4,7 +4,7 @@ import { Alert, Box, Button, Card, CardContent, FormControlLabel, Stack, Switch,
 import { useCreateWalkInOrderMutation } from '../../api/orderApi';
 import { useListServicesQuery } from '../../api/catalogApi';
 import { CustomerAutocomplete } from '../../components/CustomerAutocomplete';
-import { ServiceMultiSelect } from '../../components/ServiceMultiSelect';
+import { ServiceCardSelect } from '../../components/ServiceCardSelect';
 import { CollectedItemsEditor } from '../../components/CollectedItemsEditor';
 import { CustomerCreateDialog } from '../customers/CustomerCreateDialog';
 import type { Customer } from '../../types';
@@ -72,7 +72,7 @@ export function WalkInOrderCreatePage() {
             <Typography variant="subtitle1" fontWeight={700}>
               2. Services
             </Typography>
-            <ServiceMultiSelect value={serviceIds} onChange={setServiceIds} />
+            <ServiceCardSelect value={serviceIds} onChange={setServiceIds} />
             <Stack direction="row" spacing={3}>
               <FormControlLabel
                 control={<Switch checked={isExpressDelivery} onChange={(e) => setIsExpressDelivery(e.target.checked)} />}
