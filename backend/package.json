@@ -4,6 +4,9 @@
   "private": true,
   "description": "Laundry Management System - Backend API",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
