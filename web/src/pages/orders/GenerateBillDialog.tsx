@@ -53,20 +53,18 @@ export function GenerateBillDialog({ open, order, onClose, onGenerated }: Genera
   const itemsReady = order.isInStorePickup ? true : Boolean(pickup);
 
   const lines =
-    collectedItems?.flatMap((item) => {
+    collectedItems?.map((item) => {
       const clothType = typeof item.clothType === 'string' ? undefined : (item.clothType as ClothType);
-      return order.services.map((s) => {
-        const service = typeof s.service === 'string' ? undefined : (s.service as Service);
-        const unitPrice = clothType?.prices?.[service?._id ?? ''] ?? 0;
-        return {
-          key: `${clothType?._id ?? getId(item.clothType)}-${service?._id ?? getId(s.service)}`,
-          itemName: clothType?.name ?? getName(item.clothType),
-          serviceName: service?.name ?? getName(s.service),
-          quantity: item.quantity,
-          unitPrice,
-          lineTotal: unitPrice * item.quantity,
-        };
-      });
+      const service = typeof item.service === 'string' ? undefined : (item.service as Service);
+      const unitPrice = clothType?.prices?.[service?._id ?? ''] ?? 0;
+      return {
+        key: `${clothType?._id ?? getId(item.clothType)}-${service?._id ?? getId(item.service)}`,
+        itemName: clothType?.name ?? getName(item.clothType),
+        serviceName: service?.name ?? getName(item.service),
+        quantity: item.quantity,
+        unitPrice,
+        lineTotal: unitPrice * item.quantity,
+      };
     }) ?? [];
 
   const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);

@@ -26,6 +26,6 @@ const axiosBaseQuery: BaseQueryFn<AxiosBaseQueryArgs, unknown, ApiError> = async
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: axiosBaseQuery,
-  tagTypes: ['Pickup', 'Order', 'Bill', 'ClothType', 'Settings'],
+  tagTypes: ['Pickup', 'Order', 'Bill', 'ClothType', 'Service', 'Settings'],
   endpoints: () => ({}),
 });

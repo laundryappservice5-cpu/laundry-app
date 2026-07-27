@@ -28,7 +28,7 @@ export function PickupDetailScreen() {
   const [selfAssignPickup, { isLoading: isClaiming }] = useSelfAssignPickupMutation();
   const [completePickup, { isLoading: isCompleting }] = useCompletePickupMutation();
 
-  const [items, setItems] = useState<{ clothType: string; quantity: number }[]>([]);
+  const [items, setItems] = useState<{ clothType: string; service: string; quantity: number }[]>([]);
   const [images, setImages] = useState<string[]>([]);
   const [pickupRemarks, setPickupRemarks] = useState('');
   const [damagedItemNotes, setDamagedItemNotes] = useState('');

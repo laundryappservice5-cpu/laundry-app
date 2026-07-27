@@ -8,6 +8,7 @@ import { UserRole, User } from '../models/User';
 import { Pickup } from '../models/Pickup';
 import { Payment } from '../models/Payment';
 import { getSettings } from '../models/Settings';
+import { isAtOrPastStage, OrderStage } from '../models/orderStages';
 import { notificationService } from './notification.service';
 
 export const billService = {
@@ -26,8 +27,8 @@ export const billService = {
   ) {
     const order = await orderService.findById(orderId);
     if (!order) throw ApiError.notFound('Order not found');
-    if (!orderService.allServicesCompleted(order)) {
-      throw ApiError.badRequest('Bill can only be generated after all selected services are completed');
+    if (!isAtOrPastStage(order.currentStatus as OrderStage, 'READY_FOR_DELIVERY')) {
+      throw ApiError.badRequest('Bill can only be generated once the order is marked Ready for Delivery or later');
     }
 
     const existing = await billRepository.findByOrder(orderId);
@@ -36,22 +37,21 @@ export const billService = {
     }
 
     const collectedItems = order.pickup
-      ? ((await Pickup.findById(order.pickup).populate('collectedItems.clothType'))?.collectedItems ?? [])
+      ? ((await Pickup.findById(order.pickup).populate('collectedItems.clothType').populate('collectedItems.service'))
+          ?.collectedItems ?? [])
       : order.collectedItems;
 
-    const lineItems = order.services.flatMap((entry) => {
-      const serviceDoc = entry.service as unknown as { _id: Types.ObjectId };
-      return collectedItems.map((item) => {
-        const clothTypeDoc = item.clothType as unknown as { _id: Types.ObjectId; prices?: Map<string, number> };
-        const unitPrice = clothTypeDoc.prices?.get(String(serviceDoc._id)) ?? 0;
-        return {
-          clothType: clothTypeDoc._id,
-          service: serviceDoc._id,
-          quantity: item.quantity,
-          unitPrice,
-          lineTotal: unitPrice * item.quantity,
-        };
-      });
+    const lineItems = collectedItems.map((item) => {
+      const clothTypeDoc = item.clothType as unknown as { _id: Types.ObjectId; prices?: Map<string, number> };
+      const serviceDoc = item.service as unknown as { _id: Types.ObjectId };
+      const unitPrice = clothTypeDoc.prices?.get(String(serviceDoc._id)) ?? 0;
+      return {
+        clothType: clothTypeDoc._id,
+        service: serviceDoc._id,
+        quantity: item.quantity,
+        unitPrice,
+        lineTotal: unitPrice * item.quantity,
+      };
     });
 
     const subtotal = lineItems.reduce((sum, li) => sum + li.lineTotal, 0);

@@ -131,13 +131,17 @@ export const pickupService = {
     driverId: string,
     driverRole: UserRole,
     pickupId: string,
-    items: { clothType: string; quantity: number }[],
+    items: { clothType: string; service: string; quantity: number }[],
   ) {
     const pickup = await pickupRepository.findById(pickupId);
     if (!pickup) throw ApiError.notFound('Pickup not found');
     if (refId(pickup.assignedDriver) !== driverId) throw ApiError.forbidden('This pickup is not assigned to you');
 
-    pickup.collectedItems = items.map((i) => ({ clothType: i.clothType as unknown as Types.ObjectId, quantity: i.quantity }));
+    pickup.collectedItems = items.map((i) => ({
+      clothType: i.clothType as unknown as Types.ObjectId,
+      service: i.service as unknown as Types.ObjectId,
+      quantity: i.quantity,
+    }));
     await pickup.save();
     await recordAudit({ actor: driverId, actorRole: driverRole, action: 'UPDATE_COLLECTED_ITEMS', entityType: 'Pickup', entityId: pickup._id, after: { items } });
     return pickup;
@@ -147,13 +151,17 @@ export const pickupService = {
     actorId: string,
     actorRole: UserRole,
     pickupId: string,
-    items: { clothType: string; quantity: number }[],
+    items: { clothType: string; service: string; quantity: number }[],
   ) {
     const pickup = await pickupRepository.findById(pickupId);
     if (!pickup) throw ApiError.notFound('Pickup not found');
 
     const before = { items: pickup.collectedItems };
-    pickup.collectedItems = items.map((i) => ({ clothType: i.clothType as unknown as Types.ObjectId, quantity: i.quantity }));
+    pickup.collectedItems = items.map((i) => ({
+      clothType: i.clothType as unknown as Types.ObjectId,
+      service: i.service as unknown as Types.ObjectId,
+      quantity: i.quantity,
+    }));
     await pickup.save();
     await recordAudit({
       actor: actorId,
@@ -172,7 +180,7 @@ export const pickupService = {
     driverRole: UserRole,
     pickupId: string,
     data: {
-      items: { clothType: string; quantity: number }[];
+      items: { clothType: string; service: string; quantity: number }[];
       images?: string[];
       pickupRemarks?: string;
       damagedItemNotes?: string;
@@ -186,7 +194,11 @@ export const pickupService = {
       throw ApiError.badRequest(`Pickup cannot be completed from status ${pickup.status}`);
     }
 
-    pickup.collectedItems = data.items.map((i) => ({ clothType: i.clothType as unknown as Types.ObjectId, quantity: i.quantity }));
+    pickup.collectedItems = data.items.map((i) => ({
+      clothType: i.clothType as unknown as Types.ObjectId,
+      service: i.service as unknown as Types.ObjectId,
+      quantity: i.quantity,
+    }));
     pickup.images = data.images ?? pickup.images;
     pickup.pickupRemarks = data.pickupRemarks;
     pickup.damagedItemNotes = data.damagedItemNotes;

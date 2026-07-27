@@ -2,12 +2,6 @@ import { Schema, model, Types } from 'mongoose';
 import { ORDER_STAGES } from './orderStages';
 import { ICollectedItem } from './Pickup';
 
-export interface IOrderServiceStatus {
-  service: Types.ObjectId;
-  isCompleted: boolean;
-  completedAt?: Date;
-}
-
 export interface IOrderStatusHistoryEntry {
   _id?: Types.ObjectId;
   status: string;
@@ -22,7 +16,6 @@ export interface IOrder {
   pickup?: Types.ObjectId;
   customer: Types.ObjectId;
   driver?: Types.ObjectId;
-  services: IOrderServiceStatus[];
   currentStatus: string;
   statusHistory: IOrderStatusHistoryEntry[];
   isExpressPickup: boolean;
@@ -40,13 +33,6 @@ const orderSchema = new Schema<IOrder>(
     pickup: { type: Schema.Types.ObjectId, ref: 'Pickup' },
     customer: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
     driver: { type: Schema.Types.ObjectId, ref: 'User' },
-    services: [
-      {
-        service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
-        isCompleted: { type: Boolean, default: false },
-        completedAt: { type: Date },
-      },
-    ],
     currentStatus: { type: String, enum: ORDER_STAGES, required: true },
     statusHistory: [
       {
@@ -64,6 +50,7 @@ const orderSchema = new Schema<IOrder>(
     collectedItems: [
       {
         clothType: { type: Schema.Types.ObjectId, ref: 'ClothType', required: true },
+        service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
         quantity: { type: Number, required: true, min: 1 },
       },
     ],

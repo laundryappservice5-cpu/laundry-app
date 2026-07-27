@@ -1,5 +1,5 @@
 import { apiSlice } from './apiSlice';
-import type { ClothType } from '../types';
+import type { ClothType, Service } from '../types';
 
 export const catalogApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -11,7 +11,11 @@ export const catalogApi = apiSlice.injectEndpoints({
       query: (body) => ({ url: '/cloth-types', method: 'POST', data: body }),
       invalidatesTags: ['ClothType'],
     }),
+    listServices: builder.query<Service[], void>({
+      query: () => ({ url: '/services' }),
+      providesTags: ['Service'],
+    }),
   }),
 });
 
-export const { useListClothTypesQuery, useCreateClothTypeMutation } = catalogApi;
+export const { useListClothTypesQuery, useCreateClothTypeMutation, useListServicesQuery } = catalogApi;

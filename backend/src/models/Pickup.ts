@@ -4,6 +4,7 @@ export type PickupStatus = 'CREATED' | 'DRIVER_ASSIGNED' | 'ACCEPTED' | 'PICKED_
 
 export interface ICollectedItem {
   clothType: Types.ObjectId;
+  service: Types.ObjectId;
   quantity: number;
 }
 
@@ -63,6 +64,7 @@ const pickupSchema = new Schema<IPickup>(
     collectedItems: [
       {
         clothType: { type: Schema.Types.ObjectId, ref: 'ClothType', required: true },
+        service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
         quantity: { type: Number, required: true, min: 1 },
       },
     ],

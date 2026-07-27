@@ -4,10 +4,8 @@ import { requireAuth, requireRole } from '../middlewares/auth';
 import { validateBody } from '../middlewares/validate';
 import {
   advanceOrderStatusSchema,
-  updateServiceStatusSchema,
   updateStageEntrySchema,
   assignDeliveryDriverSchema,
-  addOrderServiceSchema,
   createInStoreOrderSchema,
   updateOrderItemsSchema,
 } from '../validators/order.validators';
@@ -25,8 +23,6 @@ router.post('/walk-in', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(createI
 router.get('/:id', orderController.getOrderById);
 router.patch('/:id/items', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(updateOrderItemsSchema), orderController.updateItems);
 router.patch('/:id/status', requireRole('ROOT_ADMIN', 'ADMIN', 'DRIVER'), validateBody(advanceOrderStatusSchema), orderController.advanceStatus);
-router.post('/:id/services', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(addOrderServiceSchema), orderController.addService);
-router.patch('/:id/services/:serviceId', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(updateServiceStatusSchema), orderController.updateServiceStatus);
 router.patch('/:id/stages/:entryId', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(updateStageEntrySchema), orderController.updateStageEntry);
 router.patch('/:id/assign-driver', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(assignDeliveryDriverSchema), orderController.assignDeliveryDriver);
 router.patch('/:id/self-assign', requireRole('DRIVER'), orderController.selfAssignDelivery);

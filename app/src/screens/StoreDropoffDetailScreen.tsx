@@ -66,10 +66,13 @@ export function StoreDropoffDetailScreen() {
         {pickup?.collectedItems.length ? (
           pickup.collectedItems.map((item, idx) => {
             const name = typeof item.clothType === 'string' ? item.clothType : item.clothType.name;
+            const serviceName = typeof item.service === 'string' ? item.service : item.service.name;
             return (
               <View key={idx} style={styles.itemRow}>
                 <Text style={styles.itemIcon}>{getClothTypeIcon(name)}</Text>
-                <Text style={styles.itemName}>{name}</Text>
+                <Text style={styles.itemName}>
+                  {name} <Text style={styles.itemService}>· {serviceName}</Text>
+                </Text>
                 <Text style={styles.itemQty}>{item.quantity}</Text>
               </View>
             );
@@ -113,6 +116,7 @@ const styles = StyleSheet.create({
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   itemIcon: { fontSize: 20 },
   itemName: { flex: 1, fontSize: 14, color: COLORS.textPrimary },
+  itemService: { fontSize: 12, fontWeight: '400', color: COLORS.textSecondary },
   itemQty: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
   primaryButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 16 },
   primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },

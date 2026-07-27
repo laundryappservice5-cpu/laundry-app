@@ -17,7 +17,12 @@ export const pickupRepository = {
     return Pickup.create(data);
   },
   findById(id: string) {
-    return Pickup.findById(id).populate('customer').populate('servicesRequested').populate('assignedDriver').populate('collectedItems.clothType');
+    return Pickup.findById(id)
+      .populate('customer')
+      .populate('servicesRequested')
+      .populate('assignedDriver')
+      .populate('collectedItems.clothType')
+      .populate('collectedItems.service');
   },
   update(id: string, data: Partial<IPickup>) {
     return Pickup.findByIdAndUpdate(id, data, { new: true });

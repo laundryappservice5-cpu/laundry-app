@@ -35,18 +35,6 @@ export const orderApi = apiSlice.injectEndpoints({
       query: ({ id, ...data }) => ({ url: `/orders/${id}/status`, method: 'PATCH', data }),
       invalidatesTags: ['Order'],
     }),
-    updateOrderServiceStatus: builder.mutation<Order, { id: string; serviceId: string; isCompleted: boolean }>({
-      query: ({ id, serviceId, isCompleted }) => ({
-        url: `/orders/${id}/services/${serviceId}`,
-        method: 'PATCH',
-        data: { isCompleted },
-      }),
-      invalidatesTags: ['Order'],
-    }),
-    addOrderService: builder.mutation<Order, { id: string; serviceId: string }>({
-      query: ({ id, serviceId }) => ({ url: `/orders/${id}/services`, method: 'POST', data: { serviceId } }),
-      invalidatesTags: ['Order'],
-    }),
     updateStageEntry: builder.mutation<Order, { id: string; entryId: string; itemCount?: number; remarks?: string }>({
       query: ({ id, entryId, ...data }) => ({ url: `/orders/${id}/stages/${entryId}`, method: 'PATCH', data }),
       invalidatesTags: ['Order'],
@@ -59,8 +47,7 @@ export const orderApi = apiSlice.injectEndpoints({
       Order,
       {
         customer: string;
-        servicesRequested: string[];
-        items: { clothType: string; quantity: number }[];
+        items: { clothType: string; service: string; quantity: number }[];
         isExpressDelivery?: boolean;
         isInStoreDelivery?: boolean;
         notes?: string;
@@ -69,7 +56,7 @@ export const orderApi = apiSlice.injectEndpoints({
       query: (data) => ({ url: '/orders/walk-in', method: 'POST', data }),
       invalidatesTags: ['Order'],
     }),
-    updateOrderItems: builder.mutation<Order, { id: string; items: { clothType: string; quantity: number }[] }>({
+    updateOrderItems: builder.mutation<Order, { id: string; items: { clothType: string; service: string; quantity: number }[] }>({
       query: ({ id, items }) => ({ url: `/orders/${id}/items`, method: 'PATCH', data: { items } }),
       invalidatesTags: ['Order'],
     }),
@@ -80,8 +67,6 @@ export const {
   useListOrdersQuery,
   useGetOrderByIdQuery,
   useAdvanceOrderStatusMutation,
-  useUpdateOrderServiceStatusMutation,
-  useAddOrderServiceMutation,
   useUpdateStageEntryMutation,
   useAssignDeliveryDriverMutation,
   useCreateWalkInOrderMutation,

@@ -124,7 +124,7 @@ export function PickupDetailPage() {
                 <Stack spacing={0.5} mb={2}>
                   {pickup.collectedItems.map((item, idx) => (
                     <Typography key={idx} variant="body2">
-                      {getName(item.clothType)} — {item.quantity}
+                      {getName(item.clothType)} · {getName(item.service)} — {item.quantity}
                     </Typography>
                   ))}
                 </Stack>

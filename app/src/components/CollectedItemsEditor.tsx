@@ -1,32 +1,48 @@
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AnimatedPressable } from './AnimatedPressable';
-import { useCreateClothTypeMutation, useListClothTypesQuery } from '../api/catalogApi';
+import { useCreateClothTypeMutation, useListClothTypesQuery, useListServicesQuery } from '../api/catalogApi';
 import { getClothTypeIcon } from '../utils/clothTypeIcons';
-import { getId } from '../utils/formatters';
+import { getId, formatCurrency } from '../utils/formatters';
 import { COLORS } from '../utils/constants';
-import type { ClothType, CollectedItem } from '../types';
+import type { ClothType, CollectedItem, Service } from '../types';
 
 interface CartEntry {
   clothType: ClothType;
+  service: Service;
   quantity: number;
 }
 
 interface CollectedItemsEditorProps {
   items: CollectedItem[];
-  onChange: (items: { clothType: string; quantity: number }[]) => void;
+  onChange: (items: { clothType: string; service: string; quantity: number }[]) => void;
+}
+
+function cartKey(clothTypeId: string, serviceId: string): string {
+  return `${clothTypeId}::${serviceId}`;
 }
 
 export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorProps) {
   const { data: clothTypes = [] } = useListClothTypesQuery();
+  const { data: services = [] } = useListServicesQuery();
   const [createClothType, { isLoading: isCreatingType }] = useCreateClothTypeMutation();
+
+  const [activeService, setActiveService] = useState('');
+
+  useEffect(() => {
+    if (!activeService && services.length > 0) setActiveService(services[0]._id);
+  }, [services, activeService]);
 
   const [cart, setCart] = useState<Map<string, CartEntry>>(() => {
     const map = new Map<string, CartEntry>();
     for (const item of items) {
       const ct = typeof item.clothType === 'string' ? clothTypes.find((c) => c._id === item.clothType) : item.clothType;
-      const id = getId(item.clothType);
-      if (id && ct) map.set(id, { clothType: ct, quantity: item.quantity });
+      const svc = typeof item.service === 'string' ? services.find((s) => s._id === item.service) : item.service;
+      const clothTypeId = getId(item.clothType);
+      const serviceId = getId(item.service);
+      if (clothTypeId && serviceId && ct && svc) {
+        map.set(cartKey(clothTypeId, serviceId), { clothType: ct, service: svc, quantity: item.quantity });
+      }
     }
     return map;
   });
@@ -42,25 +58,32 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
 
   const totalQty = useMemo(() => [...cart.values()].reduce((sum, e) => sum + e.quantity, 0), [cart]);
 
+  function priceFor(clothType: ClothType, serviceId: string): number | undefined {
+    return clothType.prices?.[serviceId];
+  }
+
   function emit(next: Map<string, CartEntry>) {
     setCart(next);
-    onChange([...next.values()].map((e) => ({ clothType: e.clothType._id, quantity: e.quantity })));
+    onChange([...next.values()].map((e) => ({ clothType: e.clothType._id, service: e.service._id, quantity: e.quantity })));
   }
 
   function addToCart(clothType: ClothType) {
+    const service = services.find((s) => s._id === activeService);
+    if (!service) return;
+    const key = cartKey(clothType._id, service._id);
     const next = new Map(cart);
-    const existing = next.get(clothType._id);
-    next.set(clothType._id, { clothType, quantity: (existing?.quantity ?? 0) + 1 });
+    const existing = next.get(key);
+    next.set(key, { clothType, service, quantity: (existing?.quantity ?? 0) + 1 });
     emit(next);
   }
 
-  function changeQuantity(clothTypeId: string, delta: number) {
+  function changeQuantity(key: string, delta: number) {
     const next = new Map(cart);
-    const existing = next.get(clothTypeId);
+    const existing = next.get(key);
     if (!existing) return;
     const quantity = existing.quantity + delta;
-    if (quantity <= 0) next.delete(clothTypeId);
-    else next.set(clothTypeId, { ...existing, quantity });
+    if (quantity <= 0) next.delete(key);
+    else next.set(key, { ...existing, quantity });
     emit(next);
   }
 
@@ -79,23 +102,47 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
         <Text style={styles.totalText}>{totalQty} item{totalQty === 1 ? '' : 's'}</Text>
       </View>
 
-      {cart.size === 0 && <Text style={styles.emptyText}>No items yet — tap a cloth type below to add it.</Text>}
+      {cart.size === 0 && <Text style={styles.emptyText}>No items yet — pick a service below, then tap a cloth type to add it.</Text>}
 
-      {[...cart.values()].map((entry) => (
-        <View key={entry.clothType._id} style={styles.cartRow}>
-          <Text style={styles.cartIcon}>{getClothTypeIcon(entry.clothType.name)}</Text>
-          <Text style={styles.cartName}>{entry.clothType.name}</Text>
-          <Pressable style={styles.stepperButton} onPress={() => changeQuantity(entry.clothType._id, -1)}>
-            <Text style={styles.stepperText}>−</Text>
-          </Pressable>
-          <Text style={styles.cartQty}>{entry.quantity}</Text>
-          <Pressable style={styles.stepperButton} onPress={() => changeQuantity(entry.clothType._id, 1)}>
-            <Text style={styles.stepperText}>+</Text>
-          </Pressable>
-        </View>
-      ))}
+      {[...cart.entries()].map(([key, entry]) => {
+        const price = priceFor(entry.clothType, entry.service._id);
+        return (
+          <View key={key} style={styles.cartRow}>
+            <Text style={styles.cartIcon}>{getClothTypeIcon(entry.clothType.name)}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cartName}>{entry.clothType.name}</Text>
+              <Text style={styles.cartMeta}>
+                {entry.service.name} · {price !== undefined ? formatCurrency(price) : 'Price not set'}
+              </Text>
+            </View>
+            <Pressable style={styles.stepperButton} onPress={() => changeQuantity(key, -1)}>
+              <Text style={styles.stepperText}>−</Text>
+            </Pressable>
+            <Text style={styles.cartQty}>{entry.quantity}</Text>
+            <Pressable style={styles.stepperButton} onPress={() => changeQuantity(key, 1)}>
+              <Text style={styles.stepperText}>+</Text>
+            </Pressable>
+          </View>
+        );
+      })}
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Add Items</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Service</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+        {services.map((svc) => {
+          const active = svc._id === activeService;
+          return (
+            <Pressable
+              key={svc._id}
+              onPress={() => setActiveService(svc._id)}
+              style={[styles.tabPill, active && styles.tabPillActive]}
+            >
+              <Text style={[styles.tabPillText, active && styles.tabPillTextActive]}>{svc.name}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Add Items</Text>
       <TextInput
         placeholder="Search cloth types…"
         value={search}
@@ -122,7 +169,9 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
               </AnimatedPressable>
             );
           }
-          const qty = cart.get(item._id)?.quantity ?? 0;
+          const key = activeService ? cartKey(item._id, activeService) : '';
+          const qty = cart.get(key)?.quantity ?? 0;
+          const price = activeService ? priceFor(item, activeService) : undefined;
           return (
             <AnimatedPressable style={styles.catalogCard} onPress={() => addToCart(item)}>
               {qty > 0 && (
@@ -133,6 +182,9 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
               <Text style={styles.catalogIcon}>{getClothTypeIcon(item.name)}</Text>
               <Text style={styles.catalogLabel} numberOfLines={1}>
                 {item.name}
+              </Text>
+              <Text style={[styles.catalogPrice, price === undefined && styles.catalogPriceUnset]} numberOfLines={1}>
+                {price !== undefined ? formatCurrency(price) : 'Not set'}
               </Text>
             </AnimatedPressable>
           );
@@ -184,7 +236,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cartIcon: { fontSize: 22 },
-  cartName: { flex: 1, fontWeight: '600', color: COLORS.textPrimary },
+  cartName: { fontWeight: '600', color: COLORS.textPrimary },
+  cartMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   stepperButton: {
     width: 28,
     height: 28,
@@ -195,6 +248,18 @@ const styles = StyleSheet.create({
   },
   stepperText: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
   cartQty: { minWidth: 24, textAlign: 'center', fontWeight: '700', color: COLORS.textPrimary },
+  tabRow: { gap: 8, paddingVertical: 4 },
+  tabPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  tabPillActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  tabPillText: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary },
+  tabPillTextActive: { color: '#fff' },
   searchInput: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -217,6 +282,8 @@ const styles = StyleSheet.create({
   newTypeCard: { borderStyle: 'dashed' },
   catalogIcon: { fontSize: 24, marginBottom: 4 },
   catalogLabel: { fontSize: 11, color: COLORS.textPrimary, maxWidth: 64 },
+  catalogPrice: { fontSize: 10, fontWeight: '700', color: COLORS.primary, marginTop: 2 },
+  catalogPriceUnset: { color: COLORS.textSecondary, fontWeight: '400' },
   badge: {
     position: 'absolute',
     top: 4,
