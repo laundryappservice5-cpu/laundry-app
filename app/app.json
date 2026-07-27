@@ -7,9 +7,12 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.royalfreshlaundry.driver"
     },
     "android": {
+      "package": "com.royalfreshlaundry.driver",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#14213D",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +23,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5d5c270c-5568-4e7d-ab6d-b6ad04922110"
+      }
     }
   }
 }
