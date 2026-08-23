@@ -39,13 +39,29 @@ async function createOrderUpToPickedUp() {
   const completeRes = await request(app)
     .patch(`/api/pickups/${pickupRes.body.data._id}/complete`)
     .set('Authorization', `Bearer ${driver.accessToken}`)
-    .send({ items: [{ clothType: shirt._id, quantity: 5 }] });
+    .send({
+      items: [
+        { clothType: shirt._id, service: wash._id, quantity: 5 },
+        { clothType: shirt._id, service: iron._id, quantity: 3 },
+      ],
+    });
 
   return { admin, driver, order: completeRes.body.data.order, wash, iron, shirt };
 }
 
+async function advanceToReadyForDelivery(admin: { accessToken: string }, orderId: string) {
+  await request(app)
+    .patch(`/api/orders/${orderId}/status`)
+    .set('Authorization', `Bearer ${admin.accessToken}`)
+    .send({ status: 'RECEIVED_AT_LAUNDRY' });
+  await request(app)
+    .patch(`/api/orders/${orderId}/status`)
+    .set('Authorization', `Bearer ${admin.accessToken}`)
+    .send({ status: 'READY_FOR_DELIVERY' });
+}
+
 describe('Billing gate', () => {
-  it('blocks bill generation until every selected service is marked complete, then computes line items from item prices', async () => {
+  it('blocks bill generation until the order reaches Ready for Delivery, then computes line items from per-item prices', async () => {
     const { admin, order, wash, iron, shirt } = await createOrderUpToPickedUp();
 
     await request(app)
@@ -64,9 +80,9 @@ describe('Billing gate', () => {
     expect(blockedRes.status).toBe(400);
 
     await request(app)
-      .patch(`/api/orders/${order._id}/services/${wash._id}`)
+      .patch(`/api/orders/${order._id}/status`)
       .set('Authorization', `Bearer ${admin.accessToken}`)
-      .send({ isCompleted: true });
+      .send({ status: 'RECEIVED_AT_LAUNDRY' });
 
     const stillBlockedRes = await request(app)
       .post(`/api/bills/orders/${order._id}/generate`)
@@ -75,28 +91,27 @@ describe('Billing gate', () => {
     expect(stillBlockedRes.status).toBe(400);
 
     await request(app)
-      .patch(`/api/orders/${order._id}/services/${iron._id}`)
+      .patch(`/api/orders/${order._id}/status`)
       .set('Authorization', `Bearer ${admin.accessToken}`)
-      .send({ isCompleted: true });
+      .send({ status: 'READY_FOR_DELIVERY' });
 
     const allowedRes = await request(app)
       .post(`/api/bills/orders/${order._id}/generate`)
       .set('Authorization', `Bearer ${admin.accessToken}`)
       .send({ taxes: 7.5 });
 
-    // 5 shirts x (₹10 wash + ₹5 iron) = ₹75 subtotal, + ₹7.5 tax = ₹82.5
+    // 5 shirts x ₹10 wash + 3 shirts x ₹5 iron = ₹65 subtotal, + ₹7.5 tax = ₹72.5
     expect(allowedRes.status).toBe(201);
-    expect(allowedRes.body.data.subtotal).toBe(75);
-    expect(allowedRes.body.data.finalAmount).toBe(82.5);
+    expect(allowedRes.body.data.subtotal).toBe(65);
+    expect(allowedRes.body.data.finalAmount).toBe(72.5);
     expect(allowedRes.body.data.lineItems).toHaveLength(2);
     expect(allowedRes.body.data.invoiceNumber).toMatch(/^INV-\d{6}-\d{4}$/);
   });
 
   it('allows regenerating an unpaid bill, but blocks regeneration once paid', async () => {
-    const { admin, order, wash, iron } = await createOrderUpToPickedUp();
+    const { admin, order } = await createOrderUpToPickedUp();
 
-    await request(app).patch(`/api/orders/${order._id}/services/${wash._id}`).set('Authorization', `Bearer ${admin.accessToken}`).send({ isCompleted: true });
-    await request(app).patch(`/api/orders/${order._id}/services/${iron._id}`).set('Authorization', `Bearer ${admin.accessToken}`).send({ isCompleted: true });
+    await advanceToReadyForDelivery(admin, order._id);
 
     const firstRes = await request(app).post(`/api/bills/orders/${order._id}/generate`).set('Authorization', `Bearer ${admin.accessToken}`).send({});
     expect(firstRes.status).toBe(201);

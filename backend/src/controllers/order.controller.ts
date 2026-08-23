@@ -68,16 +68,6 @@ export const advanceStatus = asyncHandler(async (req: Request, res: Response) =>
   ok(res, order);
 });
 
-export const updateServiceStatus = asyncHandler(async (req: Request, res: Response) => {
-  const order = await orderService.updateServiceStatus(req.params.id, req.params.serviceId, req.body.isCompleted, req.user!.userId, req.user!.role);
-  ok(res, order);
-});
-
-export const addService = asyncHandler(async (req: Request, res: Response) => {
-  const order = await orderService.addService(req.params.id, req.body.serviceId, req.user!.userId, req.user!.role);
-  ok(res, order);
-});
-
 export const updateStageEntry = asyncHandler(async (req: Request, res: Response) => {
   const order = await orderService.updateStageEntry(req.params.id, req.user!.userId, req.user!.role, req.params.entryId, req.body);
   ok(res, order);

@@ -20,7 +20,7 @@ import { useGetCustomerByIdQuery } from '../../api/customerApi';
 import { useListDriversQuery } from '../../api/driverApi';
 import { useCreatePickupMutation } from '../../api/pickupApi';
 import { CustomerAutocomplete } from '../../components/CustomerAutocomplete';
-import { ServiceMultiSelect } from '../../components/ServiceMultiSelect';
+import { ServiceCardSelect } from '../../components/ServiceCardSelect';
 import { CustomerCreateDialog } from '../customers/CustomerCreateDialog';
 import type { Customer } from '../../types';
 
@@ -162,7 +162,7 @@ export function PickupCreatePage() {
                 <TimePicker label="Pickup Time" value={pickupTime} onChange={setPickupTime} sx={{ width: '100%' }} />
               </Grid>
             </Grid>
-            <ServiceMultiSelect value={serviceIds} onChange={setServiceIds} />
+            <ServiceCardSelect value={serviceIds} onChange={setServiceIds} />
             <TextField
               select
               label="Assign Driver (optional)"

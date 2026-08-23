@@ -24,7 +24,6 @@ export const orderService = {
       pickup: pickup._id,
       customer: pickup.customer,
       driver: pickup.assignedDriver,
-      services: pickup.servicesRequested.map((service) => ({ service, isCompleted: false })),
       currentStatus: 'PICKED_UP',
       statusHistory: [
         { status: 'PICKUP_CREATED', timestamp: pickup.createdAt, updatedBy: pickup.createdBy },
@@ -56,8 +55,7 @@ export const orderService = {
     actorRole: UserRole,
     data: {
       customer: string;
-      servicesRequested: string[];
-      items: { clothType: string; quantity: number }[];
+      items: { clothType: string; service: string; quantity: number }[];
       isExpressDelivery?: boolean;
       isInStoreDelivery?: boolean;
       notes?: string;
@@ -66,8 +64,11 @@ export const orderService = {
     const now = new Date();
     const order = await orderRepository.create({
       customer: data.customer as unknown as Types.ObjectId,
-      services: data.servicesRequested.map((service) => ({ service: service as unknown as Types.ObjectId, isCompleted: false })),
-      collectedItems: data.items.map((i) => ({ clothType: i.clothType as unknown as Types.ObjectId, quantity: i.quantity })),
+      collectedItems: data.items.map((i) => ({
+        clothType: i.clothType as unknown as Types.ObjectId,
+        service: i.service as unknown as Types.ObjectId,
+        quantity: i.quantity,
+      })),
       currentStatus: 'PICKED_UP',
       statusHistory: [
         { status: 'PICKUP_CREATED', timestamp: now, updatedBy: actorId as unknown as Types.ObjectId },
@@ -84,13 +85,22 @@ export const orderService = {
     return order;
   },
 
-  async updateItems(orderId: string, actorId: string, actorRole: UserRole, items: { clothType: string; quantity: number }[]) {
+  async updateItems(
+    orderId: string,
+    actorId: string,
+    actorRole: UserRole,
+    items: { clothType: string; service: string; quantity: number }[],
+  ) {
     const order = await orderRepository.findById(orderId);
     if (!order) throw ApiError.notFound('Order not found');
     if (order.pickup) throw ApiError.badRequest('This order was created from a pickup — edit the items on the pickup instead.');
 
     const before = { collectedItems: order.collectedItems };
-    order.collectedItems = items.map((i) => ({ clothType: i.clothType as unknown as Types.ObjectId, quantity: i.quantity })) as never;
+    order.collectedItems = items.map((i) => ({
+      clothType: i.clothType as unknown as Types.ObjectId,
+      service: i.service as unknown as Types.ObjectId,
+      quantity: i.quantity,
+    })) as never;
     await order.save();
 
     await recordAudit({ actor: actorId, actorRole, action: 'UPDATE_ORDER_ITEMS', entityType: 'Order', entityId: order._id, before, after: { items } });
@@ -146,63 +156,6 @@ export const orderService = {
     }
 
     return order;
-  },
-
-  async updateServiceStatus(orderId: string, serviceId: string, isCompleted: boolean, actorId: string, actorRole: UserRole) {
-    const order = await orderRepository.findById(orderId);
-    if (!order) throw ApiError.notFound('Order not found');
-    const entry = order.services.find((s) => String(s.service._id ?? s.service) === serviceId);
-    if (!entry) throw ApiError.notFound('Service not found on this order');
-    entry.isCompleted = isCompleted;
-    entry.completedAt = isCompleted ? new Date() : undefined;
-    await order.save();
-
-    const allCompleted = order.services.every((s) => s.isCompleted);
-    if (allCompleted) {
-      const admins = await User.find({ role: { $in: ['ROOT_ADMIN', 'ADMIN'] } });
-      await notificationService.notifyMany(admins.map((a) => a._id), {
-        type: 'LAUNDRY_COMPLETED',
-        title: 'Laundry Completed',
-        body: `All services completed for order ${order._id}. Ready to generate the bill.`,
-        payload: { orderId: String(order._id) },
-      });
-
-      if (order.currentStatus === 'RECEIVED_AT_LAUNDRY') {
-        order.statusHistory.push({ status: 'READY_FOR_DELIVERY', timestamp: new Date(), updatedBy: actorId as unknown as Types.ObjectId });
-        order.currentStatus = 'READY_FOR_DELIVERY';
-        await order.save();
-
-        if (order.driver) {
-          await notificationService.notify({
-            recipientId: order.driver,
-            type: 'READY_FOR_DELIVERY',
-            title: 'Ready for Delivery',
-            body: `Order ${order._id} is ready for delivery.`,
-            payload: { orderId: String(order._id) },
-          });
-        }
-      }
-    }
-
-    await recordAudit({ actor: actorId, actorRole, action: 'UPDATE_SERVICE_STATUS', entityType: 'Order', entityId: order._id, after: { serviceId, isCompleted } });
-    return order;
-  },
-
-  async addService(orderId: string, serviceId: string, actorId: string, actorRole: UserRole) {
-    const order = await orderRepository.findById(orderId);
-    if (!order) throw ApiError.notFound('Order not found');
-    const exists = order.services.some((s) => String(s.service._id ?? s.service) === serviceId);
-    if (exists) throw ApiError.conflict('This service is already on the order');
-
-    order.services.push({ service: serviceId as unknown as Types.ObjectId, isCompleted: false } as never);
-    await order.save();
-
-    await recordAudit({ actor: actorId, actorRole, action: 'ADD_ORDER_SERVICE', entityType: 'Order', entityId: order._id, after: { serviceId } });
-    return order;
-  },
-
-  allServicesCompleted(order: { services: { isCompleted: boolean }[] }): boolean {
-    return order.services.length > 0 && order.services.every((s) => s.isCompleted);
   },
 
   async updateStageEntry(

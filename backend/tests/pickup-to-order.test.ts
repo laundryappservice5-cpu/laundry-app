@@ -55,7 +55,7 @@ describe('Pickup -> Order flow', () => {
     const completeRes = await request(app)
       .patch(`/api/pickups/${pickupId}/complete`)
       .set('Authorization', `Bearer ${driver.accessToken}`)
-      .send({ items: [{ clothType: shirt._id, quantity: 5 }], pickupRemarks: 'All good' });
+      .send({ items: [{ clothType: shirt._id, service: wash._id, quantity: 5 }], pickupRemarks: 'All good' });
 
     expect(completeRes.status).toBe(200);
     const order = completeRes.body.data.order;
@@ -65,8 +65,8 @@ describe('Pickup -> Order flow', () => {
       'DRIVER_ASSIGNED',
       'PICKED_UP',
     ]);
-    expect(order.services).toHaveLength(2);
-    expect(order.services.every((s: { isCompleted: boolean }) => s.isCompleted === false)).toBe(true);
+    expect(completeRes.body.data.pickup.collectedItems).toHaveLength(1);
+    expect(completeRes.body.data.pickup.collectedItems[0].service).toBe(String(wash._id));
 
     // Forward-only transitions: skipping ahead should still work, but going backwards must not
     const advanceRes = await request(app)

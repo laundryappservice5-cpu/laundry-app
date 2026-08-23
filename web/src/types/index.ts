@@ -47,6 +47,7 @@ export type PickupStatus = 'CREATED' | 'DRIVER_ASSIGNED' | 'ACCEPTED' | 'PICKED_
 
 export interface CollectedItem {
   clothType: ClothType | string;
+  service: Service | string;
   quantity: number;
 }
 
@@ -85,12 +86,6 @@ export const ORDER_STAGES = [
 
 export type OrderStage = (typeof ORDER_STAGES)[number];
 
-export interface OrderServiceStatus {
-  service: Service | string;
-  isCompleted: boolean;
-  completedAt?: string;
-}
-
 export interface OrderStatusHistoryEntry {
   _id: string;
   status: OrderStage;
@@ -105,7 +100,6 @@ export interface Order {
   pickup?: Pickup | string;
   customer: Customer | string;
   driver?: PublicUser | string;
-  services: OrderServiceStatus[];
   currentStatus: OrderStage;
   statusHistory: OrderStatusHistoryEntry[];
   isExpressPickup: boolean;

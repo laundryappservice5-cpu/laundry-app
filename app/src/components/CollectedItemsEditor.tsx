@@ -1,32 +1,51 @@
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AnimatedPressable } from './AnimatedPressable';
-import { useCreateClothTypeMutation, useListClothTypesQuery } from '../api/catalogApi';
+import { useCreateClothTypeMutation, useListClothTypesQuery, useListServicesQuery } from '../api/catalogApi';
 import { getClothTypeIcon } from '../utils/clothTypeIcons';
-import { getId } from '../utils/formatters';
+import { getId, formatCurrency } from '../utils/formatters';
 import { COLORS } from '../utils/constants';
-import type { ClothType, CollectedItem } from '../types';
+import type { ClothType, CollectedItem, Service } from '../types';
 
 interface CartEntry {
   clothType: ClothType;
+  service: Service;
   quantity: number;
 }
 
 interface CollectedItemsEditorProps {
   items: CollectedItem[];
-  onChange: (items: { clothType: string; quantity: number }[]) => void;
+  onChange: (items: { clothType: string; service: string; quantity: number }[]) => void;
 }
+
+function cartKey(clothTypeId: string, serviceId: string): string {
+  return `${clothTypeId}::${serviceId}`;
+}
+
+const ALL_TAB = '__all__';
+const GRID_GAP = 16;
 
 export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorProps) {
   const { data: clothTypes = [] } = useListClothTypesQuery();
+  const { data: services = [] } = useListServicesQuery();
   const [createClothType, { isLoading: isCreatingType }] = useCreateClothTypeMutation();
+
+  const [activeService, setActiveService] = useState('');
+
+  useEffect(() => {
+    if (!activeService && services.length > 0) setActiveService(services[0]._id);
+  }, [services, activeService]);
 
   const [cart, setCart] = useState<Map<string, CartEntry>>(() => {
     const map = new Map<string, CartEntry>();
     for (const item of items) {
       const ct = typeof item.clothType === 'string' ? clothTypes.find((c) => c._id === item.clothType) : item.clothType;
-      const id = getId(item.clothType);
-      if (id && ct) map.set(id, { clothType: ct, quantity: item.quantity });
+      const svc = typeof item.service === 'string' ? services.find((s) => s._id === item.service) : item.service;
+      const clothTypeId = getId(item.clothType);
+      const serviceId = getId(item.service);
+      if (clothTypeId && serviceId && ct && svc) {
+        map.set(cartKey(clothTypeId, serviceId), { clothType: ct, service: svc, quantity: item.quantity });
+      }
     }
     return map;
   });
@@ -42,25 +61,32 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
 
   const totalQty = useMemo(() => [...cart.values()].reduce((sum, e) => sum + e.quantity, 0), [cart]);
 
-  function emit(next: Map<string, CartEntry>) {
-    setCart(next);
-    onChange([...next.values()].map((e) => ({ clothType: e.clothType._id, quantity: e.quantity })));
+  function priceFor(clothType: ClothType, serviceId: string): number | undefined {
+    return clothType.prices?.[serviceId];
   }
 
-  function addToCart(clothType: ClothType) {
+  function emit(next: Map<string, CartEntry>) {
+    setCart(next);
+    onChange([...next.values()].map((e) => ({ clothType: e.clothType._id, service: e.service._id, quantity: e.quantity })));
+  }
+
+  function addToCart(clothType: ClothType, explicitService?: Service) {
+    const service = explicitService ?? services.find((s) => s._id === activeService);
+    if (!service) return;
+    const key = cartKey(clothType._id, service._id);
     const next = new Map(cart);
-    const existing = next.get(clothType._id);
-    next.set(clothType._id, { clothType, quantity: (existing?.quantity ?? 0) + 1 });
+    const existing = next.get(key);
+    next.set(key, { clothType, service, quantity: (existing?.quantity ?? 0) + 1 });
     emit(next);
   }
 
-  function changeQuantity(clothTypeId: string, delta: number) {
+  function changeQuantity(key: string, delta: number) {
     const next = new Map(cart);
-    const existing = next.get(clothTypeId);
+    const existing = next.get(key);
     if (!existing) return;
     const quantity = existing.quantity + delta;
-    if (quantity <= 0) next.delete(clothTypeId);
-    else next.set(clothTypeId, { ...existing, quantity });
+    if (quantity <= 0) next.delete(key);
+    else next.set(key, { ...existing, quantity });
     emit(next);
   }
 
@@ -74,28 +100,30 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
 
   return (
     <View>
-      <View style={styles.cartHeader}>
-        <Text style={styles.sectionTitle}>Collected Items</Text>
-        <Text style={styles.totalText}>{totalQty} item{totalQty === 1 ? '' : 's'}</Text>
-      </View>
+      <Text style={styles.sectionTitle}>Service</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+        {services.map((svc) => {
+          const active = svc._id === activeService;
+          return (
+            <Pressable
+              key={svc._id}
+              onPress={() => setActiveService(svc._id)}
+              style={[styles.tabPill, active && styles.tabPillActive]}
+            >
+              <Text style={[styles.tabPillText, active && styles.tabPillTextActive]}>{svc.name}</Text>
+            </Pressable>
+          );
+        })}
+        <Pressable
+          key={ALL_TAB}
+          onPress={() => setActiveService(ALL_TAB)}
+          style={[styles.tabPill, activeService === ALL_TAB && styles.tabPillActive]}
+        >
+          <Text style={[styles.tabPillText, activeService === ALL_TAB && styles.tabPillTextActive]}>All</Text>
+        </Pressable>
+      </ScrollView>
 
-      {cart.size === 0 && <Text style={styles.emptyText}>No items yet — tap a cloth type below to add it.</Text>}
-
-      {[...cart.values()].map((entry) => (
-        <View key={entry.clothType._id} style={styles.cartRow}>
-          <Text style={styles.cartIcon}>{getClothTypeIcon(entry.clothType.name)}</Text>
-          <Text style={styles.cartName}>{entry.clothType.name}</Text>
-          <Pressable style={styles.stepperButton} onPress={() => changeQuantity(entry.clothType._id, -1)}>
-            <Text style={styles.stepperText}>−</Text>
-          </Pressable>
-          <Text style={styles.cartQty}>{entry.quantity}</Text>
-          <Pressable style={styles.stepperButton} onPress={() => changeQuantity(entry.clothType._id, 1)}>
-            <Text style={styles.stepperText}>+</Text>
-          </Pressable>
-        </View>
-      ))}
-
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Add Items</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Add Items</Text>
       <TextInput
         placeholder="Search cloth types…"
         value={search}
@@ -104,40 +132,123 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
         placeholderTextColor={COLORS.textSecondary}
       />
 
-      <FlatList
-        data={[...filteredTypes, { _id: '__new__', name: 'New Type', isCustom: false } as ClothType]}
-        keyExtractor={(item) => item._id}
-        numColumns={4}
-        scrollEnabled={false}
-        columnWrapperStyle={{ gap: 10 }}
-        contentContainerStyle={{ gap: 10 }}
-        renderItem={({ item }) => {
-          if (item._id === '__new__') {
+      {/* cancels the surrounding card's 16px padding so the grid fills its full width */}
+      <View style={styles.gridBleed}>
+      {activeService === ALL_TAB ? (
+        <View style={styles.grid}>
+          {filteredTypes.map((item) => {
+            const pricedServices = services.filter((svc) => priceFor(item, svc._id) !== undefined);
+            const totalQtyForType = [...cart.values()]
+              .filter((e) => e.clothType._id === item._id)
+              .reduce((sum, e) => sum + e.quantity, 0);
             return (
-              <AnimatedPressable style={[styles.catalogCard, styles.newTypeCard]} onPress={() => setAddTypeOpen(true)}>
-                <Text style={styles.catalogIcon}>➕</Text>
-                <Text style={styles.catalogLabel} numberOfLines={1}>
-                  New Type
+              <View key={item._id} style={[styles.allCard, styles.cardWidth2]}>
+                {totalQtyForType > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{totalQtyForType}</Text>
+                  </View>
+                )}
+                <View style={styles.allCardHeader}>
+                  <Text style={styles.catalogIcon}>{getClothTypeIcon(item.name)}</Text>
+                  <Text style={styles.allCardName}>{item.name}</Text>
+                </View>
+                {pricedServices.length === 0 ? (
+                  <Text style={styles.catalogPriceUnset}>No prices set</Text>
+                ) : (
+                  pricedServices.map((svc) => {
+                    const price = priceFor(item, svc._id)!;
+                    const qty = cart.get(cartKey(item._id, svc._id))?.quantity ?? 0;
+                    return (
+                      <Pressable
+                        key={svc._id}
+                        style={[styles.allPriceRow, qty > 0 && styles.allPriceRowActive]}
+                        onPress={() => addToCart(item, svc)}
+                      >
+                        <Text style={styles.allPriceRowLabel}>{svc.name}</Text>
+                        <Text style={styles.allPriceRowValue}>
+                          {formatCurrency(price)}
+                          {qty > 0 ? ` ×${qty}` : ''}
+                        </Text>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            );
+          })}
+          <AnimatedPressable
+            style={[styles.catalogCard, styles.newTypeCard, { width: '100%' }]}
+            onPress={() => setAddTypeOpen(true)}
+          >
+            <Text style={styles.catalogIcon}>➕</Text>
+            <Text style={styles.catalogLabel}>New Type</Text>
+          </AnimatedPressable>
+        </View>
+      ) : (
+        <View style={styles.grid}>
+          {[...filteredTypes, { _id: '__new__', name: 'New Type', isCustom: false } as ClothType].map((item) => {
+            if (item._id === '__new__') {
+              return (
+                <AnimatedPressable
+                  key={item._id}
+                  style={[styles.catalogCard, styles.newTypeCard, styles.cardWidth3]}
+                  onPress={() => setAddTypeOpen(true)}
+                >
+                  <Text style={styles.catalogIcon}>➕</Text>
+                  <Text style={styles.catalogLabel}>New Type</Text>
+                </AnimatedPressable>
+              );
+            }
+            const key = activeService ? cartKey(item._id, activeService) : '';
+            const qty = cart.get(key)?.quantity ?? 0;
+            const price = activeService ? priceFor(item, activeService) : undefined;
+            return (
+              <AnimatedPressable key={item._id} style={[styles.catalogCard, styles.cardWidth3]} onPress={() => addToCart(item)}>
+                {qty > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{qty}</Text>
+                  </View>
+                )}
+                <Text style={styles.catalogIcon}>{getClothTypeIcon(item.name)}</Text>
+                <Text style={styles.catalogLabel}>{item.name}</Text>
+                <Text style={[styles.catalogPrice, price === undefined && styles.catalogPriceUnset]}>
+                  {price !== undefined ? formatCurrency(price) : 'Not set'}
                 </Text>
               </AnimatedPressable>
             );
-          }
-          const qty = cart.get(item._id)?.quantity ?? 0;
-          return (
-            <AnimatedPressable style={styles.catalogCard} onPress={() => addToCart(item)}>
-              {qty > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{qty}</Text>
-                </View>
-              )}
-              <Text style={styles.catalogIcon}>{getClothTypeIcon(item.name)}</Text>
-              <Text style={styles.catalogLabel} numberOfLines={1}>
-                {item.name}
+          })}
+        </View>
+      )}
+      </View>
+
+      <View style={[styles.cartHeader, { marginTop: 20 }]}>
+        <Text style={styles.sectionTitle}>Collected Items</Text>
+        <Text style={styles.totalText}>{totalQty} item{totalQty === 1 ? '' : 's'}</Text>
+      </View>
+
+      {cart.size === 0 && <Text style={styles.emptyText}>No items yet — pick a service above, then tap a cloth type to add it.</Text>}
+
+      {[...cart.entries()].map(([key, entry]) => {
+        const price = priceFor(entry.clothType, entry.service._id);
+        return (
+          <View key={key} style={styles.cartRow}>
+            <Text style={styles.cartIcon}>{getClothTypeIcon(entry.clothType.name)}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cartName}>{entry.clothType.name}</Text>
+              <Text style={styles.cartMeta}>
+                {entry.service.name} · {price !== undefined ? formatCurrency(price) : 'Price not set'}
               </Text>
-            </AnimatedPressable>
-          );
-        }}
-      />
+            </View>
+            <Pressable style={styles.stepperButton} onPress={() => changeQuantity(key, -1)}>
+              <Text style={styles.stepperText}>−</Text>
+            </Pressable>
+            <Text style={styles.cartQty}>{entry.quantity}</Text>
+            <Pressable style={styles.stepperButton} onPress={() => changeQuantity(key, 1)}>
+              <Text style={styles.stepperText}>+</Text>
+            </Pressable>
+          </View>
+        );
+      })}
 
       <Modal visible={addTypeOpen} transparent animationType="fade" onRequestClose={() => setAddTypeOpen(false)}>
         <View style={styles.modalOverlay}>
@@ -184,7 +295,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cartIcon: { fontSize: 22 },
-  cartName: { flex: 1, fontWeight: '600', color: COLORS.textPrimary },
+  cartName: { fontWeight: '600', color: COLORS.textPrimary },
+  cartMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   stepperButton: {
     width: 28,
     height: 28,
@@ -195,6 +307,18 @@ const styles = StyleSheet.create({
   },
   stepperText: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
   cartQty: { minWidth: 24, textAlign: 'center', fontWeight: '700', color: COLORS.textPrimary },
+  tabRow: { gap: 8, paddingVertical: 4 },
+  tabPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  tabPillActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  tabPillText: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary },
+  tabPillTextActive: { color: '#fff' },
   searchInput: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -204,8 +328,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: COLORS.textPrimary,
   },
+  gridBleed: { marginHorizontal: -16 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, columnGap: GRID_GAP },
+  cardWidth2: { width: '47%' },
+  cardWidth3: { width: '30.5%' },
   catalogCard: {
-    flex: 1,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -216,7 +343,32 @@ const styles = StyleSheet.create({
   },
   newTypeCard: { borderStyle: 'dashed' },
   catalogIcon: { fontSize: 24, marginBottom: 4 },
-  catalogLabel: { fontSize: 11, color: COLORS.textPrimary, maxWidth: 64 },
+  catalogLabel: { fontSize: 11, color: COLORS.textPrimary, textAlign: 'center', paddingHorizontal: 4 },
+  catalogPrice: { fontSize: 10, fontWeight: '700', color: COLORS.primary, marginTop: 2, textAlign: 'center', paddingHorizontal: 4 },
+  catalogPriceUnset: { color: COLORS.textSecondary, fontWeight: '400' },
+  allCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 10,
+    position: 'relative',
+  },
+  allCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  allCardName: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary, flexShrink: 1 },
+  allPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  allPriceRowActive: { backgroundColor: `${COLORS.primary}20` },
+  allPriceRowLabel: { fontSize: 11, color: COLORS.textSecondary, flexShrink: 1, marginRight: 6 },
+  allPriceRowValue: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
   badge: {
     position: 'absolute',
     top: 4,

@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   CardContent,
-  Checkbox,
   Chip,
   Divider,
   Grid,
@@ -18,15 +17,12 @@ import {
 } from '@mui/material';
 import {
   useGetOrderByIdQuery,
-  useUpdateOrderServiceStatusMutation,
-  useAddOrderServiceMutation,
   useAssignDeliveryDriverMutation,
   useUpdateOrderItemsMutation,
 } from '../../api/orderApi';
 import { useGetBillByIdQuery } from '../../api/billApi';
 import { useGetPickupByIdQuery, useUpdatePickupItemsMutation } from '../../api/pickupApi';
 import { useListDriversQuery } from '../../api/driverApi';
-import { useListServicesQuery } from '../../api/catalogApi';
 import { OrderStageTimeline } from '../../components/OrderStageTimeline';
 import { ExpressBadge } from '../../components/ExpressBadge';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -44,13 +40,9 @@ import type { Bill } from '../../types';
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: order, isLoading } = useGetOrderByIdQuery(id!);
-  const [updateServiceStatus] = useUpdateOrderServiceStatusMutation();
-  const [addOrderService, { isLoading: isAddingService }] = useAddOrderServiceMutation();
   const [assignDeliveryDriver, { isLoading: isAssigningDriver }] = useAssignDeliveryDriverMutation();
   const { data: drivers = [] } = useListDriversQuery();
-  const { data: allServices = [] } = useListServicesQuery();
   const [pendingDriverId, setPendingDriverId] = useState<string | null>(null);
-  const [addServiceId, setAddServiceId] = useState('');
 
   const billId = order ? getId(order.bill) : undefined;
   const { data: bill } = useGetBillByIdQuery(billId!, { skip: !billId });
@@ -75,7 +67,7 @@ export function OrderDetailPage() {
   if (order.isInStoreDelivery && nextStage === 'OUT_FOR_DELIVERY') {
     nextStage = 'DELIVERED';
   }
-  const allServicesCompleted = order.services.length > 0 && order.services.every((s) => s.isCompleted);
+  const canGenerateBill = currentIndex >= ORDER_STAGE_LIST.indexOf('READY_FOR_DELIVERY');
   const driverId = getId(order.driver);
   const pendingDriver = drivers.find((d) => d.id === pendingDriverId);
 
@@ -109,64 +101,6 @@ export function OrderDetailPage() {
                 )}
               </Stack>
               <OrderStageTimeline orderId={order._id} currentStatus={order.currentStatus} statusHistory={order.statusHistory} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                Service Checklist
-              </Typography>
-              <Stack spacing={1}>
-                {order.services.map((s) => {
-                  const serviceId = getId(s.service) ?? '';
-                  return (
-                    <Stack key={serviceId} direction="row" alignItems="center" spacing={1}>
-                      <Checkbox
-                        checked={s.isCompleted}
-                        onChange={(e) => updateServiceStatus({ id: order._id, serviceId, isCompleted: e.target.checked })}
-                      />
-                      <Typography>{getName(s.service)}</Typography>
-                      {s.isCompleted && <Chip size="small" label="Done" color="success" />}
-                    </Stack>
-                  );
-                })}
-              </Stack>
-
-              {(() => {
-                const existingIds = new Set(order.services.map((s) => getId(s.service)));
-                const availableServices = allServices.filter((svc) => !existingIds.has(svc._id));
-                if (availableServices.length === 0) return null;
-                return (
-                  <Stack direction="row" spacing={1} mt={2} alignItems="center">
-                    <TextField
-                      select
-                      size="small"
-                      label="Add a service"
-                      value={addServiceId}
-                      onChange={(e) => setAddServiceId(e.target.value)}
-                      sx={{ minWidth: 220 }}
-                    >
-                      {availableServices.map((svc) => (
-                        <MenuItem key={svc._id} value={svc._id}>
-                          {svc.name}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      disabled={!addServiceId || isAddingService}
-                      onClick={async () => {
-                        await addOrderService({ id: order._id, serviceId: addServiceId }).unwrap();
-                        setAddServiceId('');
-                      }}
-                    >
-                      Add
-                    </Button>
-                  </Stack>
-                );
-              })()}
             </CardContent>
           </Card>
         </Stack>
@@ -211,10 +145,10 @@ export function OrderDetailPage() {
 
             {(!bill || bill.paymentStatus !== 'PAID') && (
               <Stack spacing={2} sx={{ mb: bill ? 2 : 0 }}>
-                {!allServicesCompleted && (
-                  <Alert severity="info">A bill can be generated once every service above is marked complete.</Alert>
+                {!canGenerateBill && (
+                  <Alert severity="info">A bill can be generated once the order reaches Ready for Delivery.</Alert>
                 )}
-                <Button variant="contained" disabled={!allServicesCompleted} onClick={() => setGenerateBillOpen(true)}>
+                <Button variant="contained" disabled={!canGenerateBill} onClick={() => setGenerateBillOpen(true)}>
                   {bill ? 'Regenerate Bill' : 'Generate Bill'}
                 </Button>
               </Stack>
@@ -303,7 +237,6 @@ export function OrderDetailPage() {
               <CollectedItemsEditor
                 items={order.collectedItems}
                 saving={isSavingOrderItems}
-                orderServices={order.services.map((s) => s.service)}
                 onSave={async (updatedItems) => {
                   await updateOrderItems({ id: order._id, items: updatedItems });
                 }}
@@ -312,7 +245,6 @@ export function OrderDetailPage() {
               <CollectedItemsEditor
                 items={pickup.collectedItems}
                 saving={isSavingItems}
-                orderServices={order.services.map((s) => s.service)}
                 onSave={async (updatedItems) => {
                   await updatePickupItems({ id: pickup._id, items: updatedItems });
                 }}

@@ -2,9 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, FormControlLabel, Stack, Switch, TextField, Typography } from '@mui/material';
 import { useCreateWalkInOrderMutation } from '../../api/orderApi';
-import { useListServicesQuery } from '../../api/catalogApi';
 import { CustomerAutocomplete } from '../../components/CustomerAutocomplete';
-import { ServiceMultiSelect } from '../../components/ServiceMultiSelect';
 import { CollectedItemsEditor } from '../../components/CollectedItemsEditor';
 import { CustomerCreateDialog } from '../customers/CustomerCreateDialog';
 import type { Customer } from '../../types';
@@ -12,23 +10,18 @@ import type { Customer } from '../../types';
 export function WalkInOrderCreatePage() {
   const navigate = useNavigate();
   const [createWalkInOrder, { isLoading, error }] = useCreateWalkInOrderMutation();
-  const { data: services = [] } = useListServicesQuery();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
-  const [serviceIds, setServiceIds] = useState<string[]>([]);
-  const [items, setItems] = useState<{ clothType: string; quantity: number }[]>([]);
+  const [items, setItems] = useState<{ clothType: string; service: string; quantity: number }[]>([]);
   const [isExpressDelivery, setIsExpressDelivery] = useState(false);
   const [isInStoreDelivery, setIsInStoreDelivery] = useState(false);
   const [notes, setNotes] = useState('');
 
-  const selectedServices = services.filter((s) => serviceIds.includes(s._id));
-
   async function handleSubmit() {
-    if (!customer || serviceIds.length === 0 || items.length === 0) return;
+    if (!customer || items.length === 0) return;
     const order = await createWalkInOrder({
       customer: customer._id,
-      servicesRequested: serviceIds,
       items,
       isExpressDelivery,
       isInStoreDelivery,
@@ -37,7 +30,7 @@ export function WalkInOrderCreatePage() {
     navigate(`/orders/${order._id}`);
   }
 
-  const canSubmit = Boolean(customer && serviceIds.length > 0 && items.length > 0);
+  const canSubmit = Boolean(customer && items.length > 0);
 
   return (
     <Stack spacing={3} maxWidth={1000}>
@@ -70,9 +63,8 @@ export function WalkInOrderCreatePage() {
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="subtitle1" fontWeight={700}>
-              2. Services
+              2. Delivery Options
             </Typography>
-            <ServiceMultiSelect value={serviceIds} onChange={setServiceIds} />
             <Stack direction="row" spacing={3}>
               <FormControlLabel
                 control={<Switch checked={isExpressDelivery} onChange={(e) => setIsExpressDelivery(e.target.checked)} />}
@@ -93,13 +85,7 @@ export function WalkInOrderCreatePage() {
           <Typography variant="subtitle1" fontWeight={700} gutterBottom>
             3. Items Collected
           </Typography>
-          <CollectedItemsEditor
-            items={[]}
-            orderServices={selectedServices}
-            onChange={setItems}
-            hideSaveButton
-            onSave={() => {}}
-          />
+          <CollectedItemsEditor items={[]} onChange={setItems} hideSaveButton onSave={() => {}} />
         </CardContent>
       </Card>
 

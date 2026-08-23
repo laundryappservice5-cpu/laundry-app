@@ -25,9 +25,12 @@ export const orderRepository = {
     return Order.findById(id)
       .populate('customer')
       .populate('driver')
-      .populate({ path: 'pickup', populate: { path: 'collectedItems.clothType' } })
+      .populate({
+        path: 'pickup',
+        populate: [{ path: 'collectedItems.clothType' }, { path: 'collectedItems.service' }],
+      })
       .populate('collectedItems.clothType')
-      .populate('services.service')
+      .populate('collectedItems.service')
       .populate('bill');
   },
   update(id: string, data: Partial<IOrder>) {

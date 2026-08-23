@@ -18,4 +18,4 @@ const serviceSchema = new Schema<IService>(
 
 export const Service = model<IService>('Service', serviceSchema);
 
-export const DEFAULT_SERVICES = ['Dry Cleaning', 'Press', 'Dry Wash'];
+export const DEFAULT_SERVICES = ['Dry Cleaning', 'Press', 'Dry Wash', 'House Cleaning'];

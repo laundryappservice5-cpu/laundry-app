@@ -30,8 +30,13 @@ export function AnimatedPressable({ onPress, style, children, haptic = 'light' }
   }
 
   return (
-    <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
-      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+    <Pressable
+      onPress={onPress}
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      style={[style, Platform.OS === 'web' && ({ height: 'fit-content' } as unknown as ViewStyle)]}
+    >
+      <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>
     </Pressable>
   );
 }

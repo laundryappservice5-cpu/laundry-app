@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../utils/constants';
 
@@ -9,15 +10,26 @@ interface ConfirmModalProps {
   loading?: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  children?: ReactNode;
 }
 
-export function ConfirmModal({ visible, title, description, confirmLabel = 'Confirm', loading, onConfirm, onClose }: ConfirmModalProps) {
+export function ConfirmModal({
+  visible,
+  title,
+  description,
+  confirmLabel = 'Confirm',
+  loading,
+  onConfirm,
+  onClose,
+  children,
+}: ConfirmModalProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.title}>{title}</Text>
           {description && <Text style={styles.description}>{description}</Text>}
+          {children}
           <View style={styles.actions}>
             <Pressable style={[styles.button, styles.cancelButton]} onPress={onClose} disabled={loading}>
               <Text style={styles.cancelText}>Cancel</Text>

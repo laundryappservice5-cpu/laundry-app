@@ -95,7 +95,7 @@ describe('Driver stage-transition restrictions', () => {
     const completeRes = await request(app)
       .patch(`/api/pickups/${pickupId}/complete`)
       .set('Authorization', `Bearer ${driverOne.accessToken}`)
-      .send({ items: [{ clothType: shirt._id, quantity: 2 }] });
+      .send({ items: [{ clothType: shirt._id, service: wash._id, quantity: 2 }] });
     const orderId = completeRes.body.data.order._id;
     expect(completeRes.body.data.order.currentStatus).toBe('PICKED_UP');
 

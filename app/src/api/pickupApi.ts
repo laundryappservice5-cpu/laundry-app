@@ -27,7 +27,7 @@ export const pickupApi = apiSlice.injectEndpoints({
       query: (id) => ({ url: `/pickups/${id}/accept`, method: 'PATCH' }),
       invalidatesTags: ['Pickup'],
     }),
-    updateCollectedItems: builder.mutation<Pickup, { id: string; items: { clothType: string; quantity: number }[] }>({
+    updateCollectedItems: builder.mutation<Pickup, { id: string; items: { clothType: string; service: string; quantity: number }[] }>({
       query: ({ id, items }) => ({ url: `/pickups/${id}/collected-items`, method: 'PATCH', data: { items } }),
       invalidatesTags: ['Pickup'],
     }),
@@ -35,7 +35,7 @@ export const pickupApi = apiSlice.injectEndpoints({
       { pickup: Pickup; order: unknown },
       {
         id: string;
-        items: { clothType: string; quantity: number }[];
+        items: { clothType: string; service: string; quantity: number }[];
         images?: string[];
         pickupRemarks?: string;
         damagedItemNotes?: string;
