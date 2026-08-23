@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { AnimatedPressable } from '../components/AnimatedPressable';
 import { useLoginMutation } from '../api/authApi';
 import { useAppDispatch } from '../store/hooks';
@@ -14,6 +15,17 @@ export function LoginScreen() {
   const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  function handleMobileNumberChange(value: string) {
+    setError(null);
+    setMobileNumber(value);
+  }
+
+  function handlePasswordChange(value: string) {
+    setError(null);
+    setPassword(value);
+  }
 
   async function handleLogin() {
     setError(null);
@@ -47,7 +59,7 @@ export function LoginScreen() {
         <Text style={styles.label}>Mobile Number</Text>
         <TextInput
           value={mobileNumber}
-          onChangeText={setMobileNumber}
+          onChangeText={handleMobileNumberChange}
           keyboardType="phone-pad"
           style={styles.input}
           placeholder="9876543210"
@@ -55,14 +67,19 @@ export function LoginScreen() {
         />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          style={styles.input}
-          placeholder="••••••••"
-          placeholderTextColor={COLORS.textSecondary}
-        />
+        <View style={styles.passwordWrapper}>
+          <TextInput
+            value={password}
+            onChangeText={handlePasswordChange}
+            secureTextEntry={!showPassword}
+            style={styles.passwordInput}
+            placeholder="••••••••"
+            placeholderTextColor={COLORS.textSecondary}
+          />
+          <Pressable style={styles.eyeButton} onPress={() => setShowPassword((prev) => !prev)} hitSlop={8}>
+            <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color={COLORS.textSecondary} />
+          </Pressable>
+        </View>
 
         <AnimatedPressable style={styles.button} onPress={handleLogin}>
           {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
@@ -87,6 +104,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 16,
     color: COLORS.textPrimary,
+  },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: COLORS.textPrimary,
+  },
+  eyeButton: {
+    paddingHorizontal: 12,
   },
   button: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },

@@ -43,6 +43,8 @@ function cartKey(clothTypeId: string, serviceId: string): string {
   return `${clothTypeId}::${serviceId}`;
 }
 
+const ALL_TAB = '__all__';
+
 export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSaveButton = false }: CollectedItemsEditorProps) {
   const { data: clothTypes = [] } = useListClothTypesQuery();
   const { data: services = [] } = useListServicesQuery();
@@ -73,6 +75,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
   const [addTypeOpen, setAddTypeOpen] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const filteredTypes = useMemo(
     () => clothTypes.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
@@ -96,8 +99,8 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart]);
 
-  function addToCart(clothType: ClothType) {
-    const service = services.find((s) => s._id === activeService);
+  function addToCart(clothType: ClothType, explicitService?: Service) {
+    const service = explicitService ?? services.find((s) => s._id === activeService);
     if (!service) return;
     const key = cartKey(clothType._id, service._id);
     setCart((prev) => {
@@ -147,6 +150,11 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
     setDirty(false);
   }
 
+  async function handleConfirmSave() {
+    await handleSave();
+    setConfirmOpen(false);
+  }
+
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 5 }}>
@@ -172,9 +180,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
               return (
                 <Grow in key={key}>
                   <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={1.5}
+                    spacing={0.5}
                     sx={{
                       p: 1,
                       borderRadius: 2,
@@ -182,28 +188,34 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
                       transition: 'background-color 0.15s ease',
                     }}
                   >
-                    <Typography fontSize={24}>{getClothTypeIcon(entry.clothType.name)}</Typography>
-                    <Box flexGrow={1}>
-                      <Typography fontWeight={600}>{entry.clothType.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {entry.service.name} · {price !== undefined ? formatCurrency(price) : 'Price not set'}
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Typography fontSize={22}>{getClothTypeIcon(entry.clothType.name)}</Typography>
+                      <Typography fontWeight={600} sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
+                        {entry.clothType.name}
                       </Typography>
-                    </Box>
-                    <IconButton size="small" onClick={() => changeQuantity(key, -1)}>
-                      <RemoveIcon fontSize="small" />
-                    </IconButton>
-                    <Typography sx={{ minWidth: 24, textAlign: 'center' }} fontWeight={700}>
-                      {entry.quantity}
+                      <IconButton size="small" onClick={() => removeFromCart(key)}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {entry.service.name} · {price !== undefined ? formatCurrency(price) : 'Price not set'}
                     </Typography>
-                    <IconButton size="small" onClick={() => changeQuantity(key, 1)}>
-                      <AddIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => removeFromCart(key)}>
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                    <Typography sx={{ minWidth: 64, textAlign: 'right' }} fontWeight={700} color="primary.main">
-                      {formatCurrency(lineTotal(entry))}
-                    </Typography>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                      <Stack direction="row" alignItems="center" spacing={0.5}>
+                        <IconButton size="small" onClick={() => changeQuantity(key, -1)}>
+                          <RemoveIcon fontSize="small" />
+                        </IconButton>
+                        <Typography sx={{ minWidth: 20, textAlign: 'center' }} fontWeight={700}>
+                          {entry.quantity}
+                        </Typography>
+                        <IconButton size="small" onClick={() => changeQuantity(key, 1)}>
+                          <AddIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                      <Typography fontWeight={700} color="primary.main">
+                        {formatCurrency(lineTotal(entry))}
+                      </Typography>
+                    </Stack>
                   </Stack>
                 </Grow>
               );
@@ -237,7 +249,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
           )}
 
           {!hideSaveButton && (
-            <Button variant="contained" fullWidth sx={{ mt: 2 }} disabled={!dirty || saving} onClick={handleSave}>
+            <Button variant="contained" fullWidth sx={{ mt: 2 }} disabled={!dirty || saving} onClick={() => setConfirmOpen(true)}>
               {saving ? 'Saving…' : 'Save Changes'}
             </Button>
           )}
@@ -247,7 +259,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
       <Grid size={{ xs: 12, md: 7 }}>
         <Card variant="outlined" sx={{ p: 2 }}>
           <Tabs
-            value={services.some((s) => s._id === activeService) ? activeService : false}
+            value={activeService === ALL_TAB || services.some((s) => s._id === activeService) ? activeService : false}
             onChange={(_, v) => setActiveService(v)}
             variant="scrollable"
             scrollButtons="auto"
@@ -256,6 +268,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
             {services.map((svc) => (
               <Tab key={svc._id} label={svc.name} value={svc._id} sx={{ minHeight: 40 }} />
             ))}
+            <Tab key={ALL_TAB} label="All" value={ALL_TAB} sx={{ minHeight: 40 }} />
           </Tabs>
 
           <TextField
@@ -268,11 +281,88 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
           />
           <Grid container spacing={1.5}>
             {filteredTypes.map((ct) => {
+              const isAll = activeService === ALL_TAB;
+
+              if (isAll) {
+                const pricedServices = services.filter((svc) => priceFor(ct, svc._id) !== undefined);
+                const totalQtyForType = [...cart.values()]
+                  .filter((e) => e.clothType._id === ct._id)
+                  .reduce((sum, e) => sum + e.quantity, 0);
+                return (
+                  <Grid key={ct._id} size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
+                    <Card variant="outlined" sx={{ p: 1.5, position: 'relative' }}>
+                      {totalQtyForType > 0 && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 4,
+                            right: 4,
+                            bgcolor: 'primary.main',
+                            color: 'primary.contrastText',
+                            borderRadius: '50%',
+                            width: 20,
+                            height: 20,
+                            fontSize: 12,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {totalQtyForType}
+                        </Box>
+                      )}
+                      <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+                        <Typography fontSize={24}>{getClothTypeIcon(ct.name)}</Typography>
+                        <Typography variant="body2" fontWeight={600}>
+                          {ct.name}
+                        </Typography>
+                      </Stack>
+                      {pricedServices.length === 0 ? (
+                        <Typography variant="caption" color="text.disabled">
+                          No prices set
+                        </Typography>
+                      ) : (
+                        <Stack spacing={0.5}>
+                          {pricedServices.map((svc) => {
+                            const price = priceFor(ct, svc._id)!;
+                            const qty = cart.get(cartKey(ct._id, svc._id))?.quantity ?? 0;
+                            return (
+                              <Stack
+                                key={svc._id}
+                                direction="row"
+                                justifyContent="space-between"
+                                alignItems="center"
+                                onClick={() => addToCart(ct, svc)}
+                                sx={{
+                                  px: 1,
+                                  py: 0.5,
+                                  borderRadius: 1,
+                                  cursor: 'pointer',
+                                  bgcolor: qty > 0 ? 'action.selected' : 'action.hover',
+                                  '&:hover': { bgcolor: 'action.selected' },
+                                }}
+                              >
+                                <Typography variant="caption">{svc.name}</Typography>
+                                <Typography variant="caption" fontWeight={700} color="primary.main">
+                                  {formatCurrency(price)}
+                                  {qty > 0 ? ` ×${qty}` : ''}
+                                </Typography>
+                              </Stack>
+                            );
+                          })}
+                        </Stack>
+                      )}
+                    </Card>
+                  </Grid>
+                );
+              }
+
               const key = activeService ? cartKey(ct._id, activeService) : '';
               const qty = cart.get(key)?.quantity ?? 0;
               const price = activeService ? priceFor(ct, activeService) : undefined;
               return (
-                <Grid key={ct._id} size={{ xs: 6, sm: 4, md: 3 }}>
+                <Grid key={ct._id} size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
                   <Card
                     variant="outlined"
                     onClick={() => addToCart(ct)}
@@ -314,7 +404,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
                     <Typography
                       variant="caption"
                       display="block"
-                      noWrap
+                      sx={{ overflowWrap: 'break-word' }}
                       color={price !== undefined ? 'primary.main' : 'text.disabled'}
                       fontWeight={600}
                     >
@@ -324,7 +414,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
                 </Grid>
               );
             })}
-            <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+            <Grid size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
               <Card
                 variant="outlined"
                 onClick={() => setAddTypeOpen(true)}
@@ -363,6 +453,44 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
           <Button onClick={() => setAddTypeOpen(false)}>Cancel</Button>
           <Button variant="contained" disabled={!newTypeName.trim() || isCreatingType} onClick={handleCreateType}>
             {isCreatingType ? 'Adding…' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={confirmOpen} onClose={() => !saving && setConfirmOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          Confirm {totalQty} item{totalQty === 1 ? '' : 's'}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={1}>
+            {[...cart.values()].map((e) => (
+              <Stack
+                key={cartKey(e.clothType._id, e.service._id)}
+                direction="row"
+                justifyContent="space-between"
+                spacing={2}
+                sx={{ pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}
+              >
+                <Typography variant="body2">
+                  {e.clothType.name} · {e.service.name} × {e.quantity}
+                </Typography>
+                <Typography variant="body2" fontWeight={600} sx={{ whiteSpace: 'nowrap' }}>
+                  {formatCurrency(lineTotal(e))}
+                </Typography>
+              </Stack>
+            ))}
+          </Stack>
+          <Stack direction="row" justifyContent="space-between" mt={2} pt={1} sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography fontWeight={700}>Total</Typography>
+            <Typography fontWeight={700}>{formatCurrency(totalAmount)}</Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleConfirmSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Confirm & Save'}
           </Button>
         </DialogActions>
       </Dialog>

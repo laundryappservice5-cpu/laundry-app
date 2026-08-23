@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AnimatedPressable } from './AnimatedPressable';
 import { useCreateClothTypeMutation, useListClothTypesQuery, useListServicesQuery } from '../api/catalogApi';
 import { getClothTypeIcon } from '../utils/clothTypeIcons';
@@ -21,6 +21,9 @@ interface CollectedItemsEditorProps {
 function cartKey(clothTypeId: string, serviceId: string): string {
   return `${clothTypeId}::${serviceId}`;
 }
+
+const ALL_TAB = '__all__';
+const GRID_GAP = 16;
 
 export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorProps) {
   const { data: clothTypes = [] } = useListClothTypesQuery();
@@ -67,8 +70,8 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
     onChange([...next.values()].map((e) => ({ clothType: e.clothType._id, service: e.service._id, quantity: e.quantity })));
   }
 
-  function addToCart(clothType: ClothType) {
-    const service = services.find((s) => s._id === activeService);
+  function addToCart(clothType: ClothType, explicitService?: Service) {
+    const service = explicitService ?? services.find((s) => s._id === activeService);
     if (!service) return;
     const key = cartKey(clothType._id, service._id);
     const next = new Map(cart);
@@ -97,12 +100,133 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
 
   return (
     <View>
-      <View style={styles.cartHeader}>
+      <Text style={styles.sectionTitle}>Service</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+        {services.map((svc) => {
+          const active = svc._id === activeService;
+          return (
+            <Pressable
+              key={svc._id}
+              onPress={() => setActiveService(svc._id)}
+              style={[styles.tabPill, active && styles.tabPillActive]}
+            >
+              <Text style={[styles.tabPillText, active && styles.tabPillTextActive]}>{svc.name}</Text>
+            </Pressable>
+          );
+        })}
+        <Pressable
+          key={ALL_TAB}
+          onPress={() => setActiveService(ALL_TAB)}
+          style={[styles.tabPill, activeService === ALL_TAB && styles.tabPillActive]}
+        >
+          <Text style={[styles.tabPillText, activeService === ALL_TAB && styles.tabPillTextActive]}>All</Text>
+        </Pressable>
+      </ScrollView>
+
+      <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Add Items</Text>
+      <TextInput
+        placeholder="Search cloth types…"
+        value={search}
+        onChangeText={setSearch}
+        style={styles.searchInput}
+        placeholderTextColor={COLORS.textSecondary}
+      />
+
+      {/* cancels the surrounding card's 16px padding so the grid fills its full width */}
+      <View style={styles.gridBleed}>
+      {activeService === ALL_TAB ? (
+        <View style={styles.grid}>
+          {filteredTypes.map((item) => {
+            const pricedServices = services.filter((svc) => priceFor(item, svc._id) !== undefined);
+            const totalQtyForType = [...cart.values()]
+              .filter((e) => e.clothType._id === item._id)
+              .reduce((sum, e) => sum + e.quantity, 0);
+            return (
+              <View key={item._id} style={[styles.allCard, styles.cardWidth2]}>
+                {totalQtyForType > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{totalQtyForType}</Text>
+                  </View>
+                )}
+                <View style={styles.allCardHeader}>
+                  <Text style={styles.catalogIcon}>{getClothTypeIcon(item.name)}</Text>
+                  <Text style={styles.allCardName}>{item.name}</Text>
+                </View>
+                {pricedServices.length === 0 ? (
+                  <Text style={styles.catalogPriceUnset}>No prices set</Text>
+                ) : (
+                  pricedServices.map((svc) => {
+                    const price = priceFor(item, svc._id)!;
+                    const qty = cart.get(cartKey(item._id, svc._id))?.quantity ?? 0;
+                    return (
+                      <Pressable
+                        key={svc._id}
+                        style={[styles.allPriceRow, qty > 0 && styles.allPriceRowActive]}
+                        onPress={() => addToCart(item, svc)}
+                      >
+                        <Text style={styles.allPriceRowLabel}>{svc.name}</Text>
+                        <Text style={styles.allPriceRowValue}>
+                          {formatCurrency(price)}
+                          {qty > 0 ? ` ×${qty}` : ''}
+                        </Text>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            );
+          })}
+          <AnimatedPressable
+            style={[styles.catalogCard, styles.newTypeCard, { width: '100%' }]}
+            onPress={() => setAddTypeOpen(true)}
+          >
+            <Text style={styles.catalogIcon}>➕</Text>
+            <Text style={styles.catalogLabel}>New Type</Text>
+          </AnimatedPressable>
+        </View>
+      ) : (
+        <View style={styles.grid}>
+          {[...filteredTypes, { _id: '__new__', name: 'New Type', isCustom: false } as ClothType].map((item) => {
+            if (item._id === '__new__') {
+              return (
+                <AnimatedPressable
+                  key={item._id}
+                  style={[styles.catalogCard, styles.newTypeCard, styles.cardWidth3]}
+                  onPress={() => setAddTypeOpen(true)}
+                >
+                  <Text style={styles.catalogIcon}>➕</Text>
+                  <Text style={styles.catalogLabel}>New Type</Text>
+                </AnimatedPressable>
+              );
+            }
+            const key = activeService ? cartKey(item._id, activeService) : '';
+            const qty = cart.get(key)?.quantity ?? 0;
+            const price = activeService ? priceFor(item, activeService) : undefined;
+            return (
+              <AnimatedPressable key={item._id} style={[styles.catalogCard, styles.cardWidth3]} onPress={() => addToCart(item)}>
+                {qty > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{qty}</Text>
+                  </View>
+                )}
+                <Text style={styles.catalogIcon}>{getClothTypeIcon(item.name)}</Text>
+                <Text style={styles.catalogLabel}>{item.name}</Text>
+                <Text style={[styles.catalogPrice, price === undefined && styles.catalogPriceUnset]}>
+                  {price !== undefined ? formatCurrency(price) : 'Not set'}
+                </Text>
+              </AnimatedPressable>
+            );
+          })}
+        </View>
+      )}
+      </View>
+
+      <View style={[styles.cartHeader, { marginTop: 20 }]}>
         <Text style={styles.sectionTitle}>Collected Items</Text>
         <Text style={styles.totalText}>{totalQty} item{totalQty === 1 ? '' : 's'}</Text>
       </View>
 
-      {cart.size === 0 && <Text style={styles.emptyText}>No items yet — pick a service below, then tap a cloth type to add it.</Text>}
+      {cart.size === 0 && <Text style={styles.emptyText}>No items yet — pick a service above, then tap a cloth type to add it.</Text>}
 
       {[...cart.entries()].map(([key, entry]) => {
         const price = priceFor(entry.clothType, entry.service._id);
@@ -125,71 +249,6 @@ export function CollectedItemsEditor({ items, onChange }: CollectedItemsEditorPr
           </View>
         );
       })}
-
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Service</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
-        {services.map((svc) => {
-          const active = svc._id === activeService;
-          return (
-            <Pressable
-              key={svc._id}
-              onPress={() => setActiveService(svc._id)}
-              style={[styles.tabPill, active && styles.tabPillActive]}
-            >
-              <Text style={[styles.tabPillText, active && styles.tabPillTextActive]}>{svc.name}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Add Items</Text>
-      <TextInput
-        placeholder="Search cloth types…"
-        value={search}
-        onChangeText={setSearch}
-        style={styles.searchInput}
-        placeholderTextColor={COLORS.textSecondary}
-      />
-
-      <FlatList
-        data={[...filteredTypes, { _id: '__new__', name: 'New Type', isCustom: false } as ClothType]}
-        keyExtractor={(item) => item._id}
-        numColumns={4}
-        scrollEnabled={false}
-        columnWrapperStyle={{ gap: 10 }}
-        contentContainerStyle={{ gap: 10 }}
-        renderItem={({ item }) => {
-          if (item._id === '__new__') {
-            return (
-              <AnimatedPressable style={[styles.catalogCard, styles.newTypeCard]} onPress={() => setAddTypeOpen(true)}>
-                <Text style={styles.catalogIcon}>➕</Text>
-                <Text style={styles.catalogLabel} numberOfLines={1}>
-                  New Type
-                </Text>
-              </AnimatedPressable>
-            );
-          }
-          const key = activeService ? cartKey(item._id, activeService) : '';
-          const qty = cart.get(key)?.quantity ?? 0;
-          const price = activeService ? priceFor(item, activeService) : undefined;
-          return (
-            <AnimatedPressable style={styles.catalogCard} onPress={() => addToCart(item)}>
-              {qty > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{qty}</Text>
-                </View>
-              )}
-              <Text style={styles.catalogIcon}>{getClothTypeIcon(item.name)}</Text>
-              <Text style={styles.catalogLabel} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={[styles.catalogPrice, price === undefined && styles.catalogPriceUnset]} numberOfLines={1}>
-                {price !== undefined ? formatCurrency(price) : 'Not set'}
-              </Text>
-            </AnimatedPressable>
-          );
-        }}
-      />
 
       <Modal visible={addTypeOpen} transparent animationType="fade" onRequestClose={() => setAddTypeOpen(false)}>
         <View style={styles.modalOverlay}>
@@ -269,8 +328,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: COLORS.textPrimary,
   },
+  gridBleed: { marginHorizontal: -16 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, columnGap: GRID_GAP },
+  cardWidth2: { width: '47%' },
+  cardWidth3: { width: '30.5%' },
   catalogCard: {
-    flex: 1,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -281,9 +343,32 @@ const styles = StyleSheet.create({
   },
   newTypeCard: { borderStyle: 'dashed' },
   catalogIcon: { fontSize: 24, marginBottom: 4 },
-  catalogLabel: { fontSize: 11, color: COLORS.textPrimary, maxWidth: 64 },
-  catalogPrice: { fontSize: 10, fontWeight: '700', color: COLORS.primary, marginTop: 2 },
+  catalogLabel: { fontSize: 11, color: COLORS.textPrimary, textAlign: 'center', paddingHorizontal: 4 },
+  catalogPrice: { fontSize: 10, fontWeight: '700', color: COLORS.primary, marginTop: 2, textAlign: 'center', paddingHorizontal: 4 },
   catalogPriceUnset: { color: COLORS.textSecondary, fontWeight: '400' },
+  allCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 10,
+    position: 'relative',
+  },
+  allCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  allCardName: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary, flexShrink: 1 },
+  allPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  allPriceRowActive: { backgroundColor: `${COLORS.primary}20` },
+  allPriceRowLabel: { fontSize: 11, color: COLORS.textSecondary, flexShrink: 1, marginRight: 6 },
+  allPriceRowValue: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
   badge: {
     position: 'absolute',
     top: 4,

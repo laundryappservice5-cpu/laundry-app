@@ -11,8 +11,9 @@ import { FadeSlideIn } from '../components/FadeSlideIn';
 import { CollectedItemsEditor } from '../components/CollectedItemsEditor';
 import { ImagePickerGrid } from '../components/ImagePickerGrid';
 import { useAcceptPickupMutation, useCompletePickupMutation, useGetPickupByIdQuery, useSelfAssignPickupMutation } from '../api/pickupApi';
+import { useListClothTypesQuery, useListServicesQuery } from '../api/catalogApi';
 import { COLORS } from '../utils/constants';
-import { formatDate, getName } from '../utils/formatters';
+import { formatDate, formatCurrency, getName } from '../utils/formatters';
 import { getMapsUrl } from '../utils/mapsLink';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -27,6 +28,8 @@ export function PickupDetailScreen() {
   const [acceptPickup, { isLoading: isAccepting }] = useAcceptPickupMutation();
   const [selfAssignPickup, { isLoading: isClaiming }] = useSelfAssignPickupMutation();
   const [completePickup, { isLoading: isCompleting }] = useCompletePickupMutation();
+  const { data: clothTypes = [] } = useListClothTypesQuery();
+  const { data: services = [] } = useListServicesQuery();
 
   const [items, setItems] = useState<{ clothType: string; service: string; quantity: number }[]>([]);
   const [images, setImages] = useState<string[]>([]);
@@ -190,13 +193,29 @@ export function PickupDetailScreen() {
 
       <ConfirmModal
         visible={completeConfirmOpen}
-        title="Mark pickup as completed?"
+        title={`Confirm ${items.reduce((sum, i) => sum + i.quantity, 0)} item${items.reduce((sum, i) => sum + i.quantity, 0) === 1 ? '' : 's'}`}
         description="This sends the items to the laundry team and cannot be undone."
         confirmLabel="Complete"
         loading={isCompleting}
         onClose={() => setCompleteConfirmOpen(false)}
         onConfirm={handleComplete}
-      />
+      >
+        <View style={styles.confirmItemList}>
+          {items.map((item, idx) => {
+            const clothType = clothTypes.find((c) => c._id === item.clothType);
+            const service = services.find((s) => s._id === item.service);
+            const price = clothType?.prices?.[item.service];
+            return (
+              <View key={idx} style={styles.confirmItemRow}>
+                <Text style={styles.confirmItemText}>
+                  {clothType?.name ?? 'Item'} · {service?.name ?? ''} × {item.quantity}
+                </Text>
+                {price !== undefined && <Text style={styles.confirmItemPrice}>{formatCurrency(price * item.quantity)}</Text>}
+              </View>
+            );
+          })}
+        </View>
+      </ConfirmModal>
     </ScrollView>
   );
 }
@@ -224,4 +243,15 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textAlignVertical: 'top',
   },
+  confirmItemList: { marginBottom: 12, maxHeight: 220 },
+  confirmItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  confirmItemText: { fontSize: 13, color: COLORS.textPrimary, flexShrink: 1, marginRight: 8 },
+  confirmItemPrice: { fontSize: 13, fontWeight: '700', color: COLORS.textPrimary },
 });
