@@ -27,6 +27,10 @@ export const catalogApi = apiSlice.injectEndpoints({
       query: () => ({ url: '/services' }),
       providesTags: ['Service'],
     }),
+    createService: builder.mutation<Service, { name: string; flatPrice?: number }>({
+      query: (body) => ({ url: '/services', method: 'POST', data: body }),
+      invalidatesTags: ['Service'],
+    }),
     updateService: builder.mutation<Service, { id: string; flatPrice?: number | null; name?: string; isActive?: boolean }>({
       query: ({ id, ...data }) => ({ url: `/services/${id}`, method: 'PATCH', data }),
       invalidatesTags: ['Service'],
@@ -45,6 +49,7 @@ export const {
   useSetClothTypeIconMutation,
   useDeleteClothTypeMutation,
   useListServicesQuery,
+  useCreateServiceMutation,
   useUpdateServiceMutation,
   useDeleteServiceMutation,
 } = catalogApi;
