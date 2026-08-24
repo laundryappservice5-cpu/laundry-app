@@ -19,6 +19,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import {
   useCreateClothTypeMutation,
+  useCreateServiceMutation,
   useDeleteClothTypeMutation,
   useDeleteServiceMutation,
   useListClothTypesQuery,
@@ -38,6 +39,7 @@ export function ServicesPage() {
   const { data: clothTypes = [], isLoading } = useListClothTypesQuery();
   const [setPrice, { isLoading: isSaving }] = useSetClothTypePriceMutation();
   const [createClothType, { isLoading: isCreating, error: createError }] = useCreateClothTypeMutation();
+  const [createService, { isLoading: isCreatingService, error: createServiceError }] = useCreateServiceMutation();
   const [updateService, { isLoading: isSavingFlatPrice }] = useUpdateServiceMutation();
   const [deleteClothType, { isLoading: isDeletingClothType }] = useDeleteClothTypeMutation();
   const [deleteService, { isLoading: isDeletingService }] = useDeleteServiceMutation();
@@ -57,6 +59,10 @@ export function ServicesPage() {
 
   const [addTypeOpen, setAddTypeOpen] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
+
+  const [addServiceOpen, setAddServiceOpen] = useState(false);
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceFlatPrice, setNewServiceFlatPrice] = useState('');
 
   function flatPriceValue(service: Service): string {
     return flatPriceInputs[service._id] ?? (service.flatPrice != null ? String(service.flatPrice) : '');
@@ -91,6 +97,17 @@ export function ServicesPage() {
     setNewTypeName('');
     setNewTypeIcon(undefined);
     setAddTypeOpen(false);
+  }
+
+  async function handleCreateService() {
+    if (!newServiceName.trim()) return;
+    await createService({
+      name: newServiceName.trim(),
+      flatPrice: newServiceFlatPrice.trim() ? Number(newServiceFlatPrice) : undefined,
+    }).unwrap();
+    setNewServiceName('');
+    setNewServiceFlatPrice('');
+    setAddServiceOpen(false);
   }
 
   async function handleSelectIcon(icon: string) {
@@ -130,9 +147,14 @@ export function ServicesPage() {
       </Stack>
 
       <Card variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-          Direct / Flat-Fee Services
-        </Typography>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Typography variant="subtitle1" fontWeight={700}>
+            Services
+          </Typography>
+          <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => setAddServiceOpen(true)}>
+            New Service
+          </Button>
+        </Stack>
         <Typography variant="body2" color="text.secondary" mb={2}>
           Give a service a flat price to make it a standalone service (like House Cleaning) — it charges one fixed amount
           instead of per cloth item, can't be combined with other services on the same order, and won't show up in the
@@ -316,6 +338,42 @@ export function ServicesPage() {
         </DialogActions>
       </Dialog>
 
+      <Dialog open={addServiceOpen} onClose={() => setAddServiceOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>New Service</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} mt={1}>
+            {createServiceError && (
+              <Box color="error.main" component={Typography} variant="body2">
+                This service already exists.
+              </Box>
+            )}
+            <TextField
+              label="Name"
+              fullWidth
+              autoFocus
+              value={newServiceName}
+              onChange={(e) => setNewServiceName(e.target.value)}
+            />
+            <TextField
+              label="Flat Price (optional)"
+              type="number"
+              fullWidth
+              value={newServiceFlatPrice}
+              onChange={(e) => setNewServiceFlatPrice(e.target.value)}
+              helperText="Only set this if it's a standalone service like House Cleaning. Leave blank for a regular itemized service and set per-item prices below afterwards."
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddServiceOpen(false)} disabled={isCreatingService}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleCreateService} disabled={isCreatingService || !newServiceName.trim()}>
+            {isCreatingService ? 'Creating…' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <ConfirmDialog
         open={Boolean(deleteClothTypeTarget)}
         title={`Delete "${deleteClothTypeTarget?.name}"?`}
@@ -330,7 +388,7 @@ export function ServicesPage() {
       <ConfirmDialog
         open={Boolean(deleteServiceTarget)}
         title={`Delete "${deleteServiceTarget?.name}"?`}
-        description="This removes it from the catalog for new orders. Past orders and bills that already used it are not affected."
+        description="This also removes every cloth type's price for this service, and it can no longer be used on new orders. Past orders and bills that already used it are not affected. Are you sure?"
         confirmLabel="Delete"
         confirmColor="error"
         loading={isDeletingService}

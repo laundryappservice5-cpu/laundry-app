@@ -7,6 +7,7 @@ export const createClothTypeSchema = z.object({
 
 export const createServiceSchema = z.object({
   name: z.string().min(1),
+  flatPrice: z.number().positive().optional(),
 });
 
 export const updateServiceSchema = z.object({
