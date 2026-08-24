@@ -9,11 +9,11 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { Banner } from '../components/Banner';
 import { useAdvanceOrderStatusMutation, useGetOrderByIdQuery } from '../api/orderApi';
 import { useGetBillByIdQuery, useRecordPaymentMutation } from '../api/billApi';
-import { COLORS, PAYMENT_METHODS } from '../utils/constants';
+import { COLORS } from '../utils/constants';
 import { formatCurrency, getId, getName } from '../utils/formatters';
 import { getMapsUrl } from '../utils/mapsLink';
 import type { RootStackParamList } from '../navigation/types';
-import type { PaymentMethod } from '../types';
+import type { Bill, PaymentLeg, PaymentMethod } from '../types';
 
 type DetailRoute = RouteProp<RootStackParamList, 'OrderDeliveryDetail'>;
 
@@ -28,10 +28,14 @@ export function OrderDeliveryDetailScreen() {
   const [advanceStatus, { isLoading: isAdvancing }] = useAdvanceOrderStatusMutation();
   const [recordPayment, { isLoading: isRecordingPayment }] = useRecordPaymentMutation();
 
-  const [method, setMethod] = useState<PaymentMethod>('CASH');
-  const [amount, setAmount] = useState('');
+  const [collectionOption, setCollectionOption] = useState<'CARD' | 'CASH' | 'PARTIAL' | null>(null);
+  const [cashAmount, setCashAmount] = useState('');
+  const [cardAmount, setCardAmount] = useState('');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
   const [deliverConfirmOpen, setDeliverConfirmOpen] = useState(false);
+  const [paymentConfirmOpen, setPaymentConfirmOpen] = useState(false);
+  const [isCompletingDelivery, setIsCompletingDelivery] = useState(false);
 
   if (isLoading || !order) {
     return (
@@ -43,16 +47,51 @@ export function OrderDeliveryDetailScreen() {
 
   const pickup = typeof order.pickup === 'string' ? undefined : order.pickup;
   const isPaid = !bill || bill.paymentStatus === 'PAID';
+  const balanceDue = bill ? bill.finalAmount - (bill.amountPaid ?? 0) : 0;
   const orderId = order._id;
+  const cash = Number(cashAmount) || 0;
+  const card = Number(cardAmount) || 0;
+  const partialTotal = cash + card;
 
   async function handleStartDelivery() {
     await advanceStatus({ id: orderId, status: 'OUT_FOR_DELIVERY' });
     setStartConfirmOpen(false);
   }
 
-  async function handleCollectPayment() {
+  async function completeDeliveryIfFullyPaid(updatedBill: Bill) {
+    if (updatedBill.paymentStatus !== 'PAID') return;
+    setIsCompletingDelivery(true);
+    await advanceStatus({ id: orderId, status: 'DELIVERED' });
+    navigation.goBack();
+  }
+
+  async function handleCollectFull(method: PaymentMethod) {
     if (!bill) return;
-    await recordPayment({ id: bill._id, amount: Number(amount || bill.finalAmount), method });
+    setPaymentError(null);
+    try {
+      const result = await recordPayment({ id: bill._id, splits: [{ amount: balanceDue, method }] }).unwrap();
+      setCollectionOption(null);
+      await completeDeliveryIfFullyPaid(result.bill);
+    } catch {
+      setPaymentError('Could not record the payment. Please try again.');
+    }
+  }
+
+  async function handleCollectPartial() {
+    if (!bill || partialTotal <= 0) return;
+    setPaymentError(null);
+    const splits: PaymentLeg[] = [];
+    if (cash > 0) splits.push({ amount: cash, method: 'CASH' });
+    if (card > 0) splits.push({ amount: card, method: 'CARD' });
+    try {
+      const result = await recordPayment({ id: bill._id, splits }).unwrap();
+      setCollectionOption(null);
+      setCashAmount('');
+      setCardAmount('');
+      await completeDeliveryIfFullyPaid(result.bill);
+    } catch {
+      setPaymentError('Could not record the payment. Please try again.');
+    }
   }
 
   async function handleMarkDelivered() {
@@ -93,8 +132,13 @@ export function OrderDeliveryDetailScreen() {
       )}
 
       {order.currentStatus === 'OUT_FOR_DELIVERY' && !isPaid && bill && (
-        <Banner variant="warning" title="Payment pending" subtitle="Collect payment from the customer before marking this delivered." />
+        <Banner
+          variant="warning"
+          title="Payment pending"
+          subtitle="Collect payment from the customer — the order marks itself Delivered once it's fully paid."
+        />
       )}
+      {paymentError && <Banner variant="error" title="Payment failed" subtitle={paymentError} />}
 
       {pickup && (
         <View style={styles.card}>
@@ -121,7 +165,11 @@ export function OrderDeliveryDetailScreen() {
             <Text style={styles.totalValue}>{formatCurrency(bill.finalAmount)}</Text>
           </View>
           <Text style={[styles.value, { color: isPaid ? COLORS.success : COLORS.error }]}>
-            {isPaid ? `Paid via ${bill.paymentMethod}` : 'Payment Pending'}
+            {isPaid
+              ? `Paid via ${bill.paymentMethod}`
+              : bill.paymentStatus === 'PARTIAL'
+                ? `Partially Paid via ${bill.paymentMethod} — ${formatCurrency(balanceDue)} due`
+                : 'Payment Pending'}
           </Text>
         </View>
       )}
@@ -135,24 +183,92 @@ export function OrderDeliveryDetailScreen() {
       {order.currentStatus === 'OUT_FOR_DELIVERY' && !isPaid && bill && (
         <View style={styles.card}>
           <Text style={styles.label}>Collect Payment</Text>
-          <View style={styles.methodRow}>
-            {PAYMENT_METHODS.map((m) => (
-              <Pressable key={m} style={[styles.methodChip, method === m && styles.methodChipActive]} onPress={() => setMethod(m)}>
-                <Text style={[styles.methodText, method === m && styles.methodTextActive]}>{m}</Text>
-              </Pressable>
-            ))}
+          <Text style={[styles.totalValue, { marginTop: 4, marginBottom: 12 }]}>{formatCurrency(balanceDue)}</Text>
+
+          <View style={{ gap: 8, marginBottom: collectionOption === 'PARTIAL' ? 12 : 0 }}>
+            <Pressable
+              style={[styles.optionButton, collectionOption === 'CARD' && styles.optionButtonActive]}
+              onPress={() => setCollectionOption('CARD')}
+            >
+              <Text style={[styles.optionText, collectionOption === 'CARD' && styles.optionTextActive]}>💳 Card (Swipe Machine)</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.optionButton, collectionOption === 'CASH' && styles.optionButtonActive]}
+              onPress={() => setCollectionOption('CASH')}
+            >
+              <Text style={[styles.optionText, collectionOption === 'CASH' && styles.optionTextActive]}>💵 Cash</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.optionButton, collectionOption === 'PARTIAL' && styles.optionButtonActive]}
+              onPress={() => setCollectionOption('PARTIAL')}
+            >
+              <Text style={[styles.optionText, collectionOption === 'PARTIAL' && styles.optionTextActive]}>➗ Partial Payment</Text>
+            </Pressable>
           </View>
-          <TextInput
-            value={amount}
-            onChangeText={setAmount}
-            placeholder={String(bill.finalAmount)}
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="numeric"
-            style={styles.amountInput}
-          />
-          <AnimatedPressable style={styles.primaryButton} onPress={handleCollectPayment}>
-            {isRecordingPayment ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Record Payment</Text>}
-          </AnimatedPressable>
+
+          {collectionOption === 'PARTIAL' && (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[styles.value, { marginBottom: 8 }]}>
+                Split what's collected now between cash and card — both get recorded.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput
+                  value={cashAmount}
+                  onChangeText={setCashAmount}
+                  placeholder="Cash amount"
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="numeric"
+                  style={[styles.amountInput, { flex: 1 }]}
+                />
+                <TextInput
+                  value={cardAmount}
+                  onChangeText={setCardAmount}
+                  placeholder="Card amount"
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="numeric"
+                  style={[styles.amountInput, { flex: 1 }]}
+                />
+              </View>
+              {partialTotal > 0 && (
+                <Text style={styles.value}>
+                  Collecting now: {formatCurrency(partialTotal)}
+                  {partialTotal < balanceDue ? ` — remaining balance: ${formatCurrency(balanceDue - partialTotal)}` : ''}
+                </Text>
+              )}
+              {partialTotal > balanceDue && <Text style={{ color: COLORS.error, fontSize: 13 }}>Total exceeds the balance due.</Text>}
+            </View>
+          )}
+
+          {collectionOption === 'PARTIAL' ? (
+            <AnimatedPressable
+              style={[
+                styles.primaryButton,
+                (partialTotal <= 0 || partialTotal > balanceDue || isRecordingPayment || isCompletingDelivery) &&
+                  styles.primaryButtonDisabled,
+              ]}
+              onPress={() => setPaymentConfirmOpen(true)}
+            >
+              {isRecordingPayment || isCompletingDelivery ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Record {formatCurrency(partialTotal)}</Text>
+              )}
+            </AnimatedPressable>
+          ) : (
+            <AnimatedPressable
+              style={[
+                styles.primaryButton,
+                (!collectionOption || isRecordingPayment || isCompletingDelivery) && styles.primaryButtonDisabled,
+              ]}
+              onPress={() => setPaymentConfirmOpen(true)}
+            >
+              {isRecordingPayment || isCompletingDelivery ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Collect {formatCurrency(balanceDue)}</Text>
+              )}
+            </AnimatedPressable>
+          )}
         </View>
       )}
 
@@ -181,6 +297,23 @@ export function OrderDeliveryDetailScreen() {
         onClose={() => setDeliverConfirmOpen(false)}
         onConfirm={handleMarkDelivered}
       />
+
+      <ConfirmModal
+        visible={paymentConfirmOpen}
+        title={`Mark ${formatCurrency(collectionOption === 'PARTIAL' ? partialTotal : balanceDue)} as paid?`}
+        description="This records the payment as collected and cannot be undone. Make sure you've actually received this amount from the customer before confirming."
+        confirmLabel="Yes, Paid"
+        loading={isRecordingPayment || isCompletingDelivery}
+        onClose={() => setPaymentConfirmOpen(false)}
+        onConfirm={async () => {
+          if (collectionOption === 'PARTIAL') {
+            await handleCollectPartial();
+          } else if (collectionOption) {
+            await handleCollectFull(collectionOption);
+          }
+          setPaymentConfirmOpen(false);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -199,11 +332,11 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
   totalValue: { fontSize: 16, fontWeight: '800', color: COLORS.textPrimary },
   primaryButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 16 },
+  primaryButtonDisabled: { opacity: 0.5 },
   primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  methodRow: { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 12 },
-  methodChip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  methodChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  methodText: { color: COLORS.textPrimary, fontWeight: '600' },
-  methodTextActive: { color: '#fff' },
+  optionButton: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14 },
+  optionButtonActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  optionText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 15 },
+  optionTextActive: { color: '#fff' },
   amountInput: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 10, marginBottom: 12, color: COLORS.textPrimary },
 });

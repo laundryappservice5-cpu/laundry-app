@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Card, CardContent, Stack, Tab, Tabs, Typography } from '@mui/material';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Card, CardContent, Chip, Stack, Tab, Tabs, Typography } from '@mui/material';
 import {
   useGetAdminPerformanceQuery,
   useGetDiscountsReportQuery,
@@ -11,9 +11,9 @@ import {
 } from '../../api/reportApi';
 import { DataTable, type DataTableColumn } from '../../components/DataTable';
 import { OrderStageChip } from '../../components/StatusChip';
-import { formatCurrency, formatDateTime, getName } from '../../utils/formatters';
+import { formatCurrency, formatDateTime, getId, getName } from '../../utils/formatters';
 import { useClientPagination } from '../../hooks/useClientPagination';
-import type { Bill, Order, Payment } from '../../types';
+import type { Bill, Order, PaymentReportRow } from '../../types';
 
 const TABS = ['Driver Performance', 'Admin Performance', 'Discounts', 'Payments', 'Repeat Customers', 'Express Orders'];
 
@@ -107,15 +107,34 @@ function DiscountsTab() {
   );
 }
 
+function methodSummary(row: PaymentReportRow): string {
+  if (row.legs.length <= 1) return row.legs[0]?.method ?? '—';
+  return `Partial (${row.legs.map((l) => `${l.method}: ${formatCurrency(l.amount)}`).join(' + ')})`;
+}
+
 function PaymentsTab() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const { data, isFetching } = useGetPaymentsReportQuery({ page, limit });
-  const columns: DataTableColumn<Payment>[] = [
+  const columns: DataTableColumn<PaymentReportRow>[] = [
     { key: 'date', header: 'Date', render: (p) => formatDateTime(p.createdAt), sortAccessor: (p) => p.createdAt },
     { key: 'amount', header: 'Amount', render: (p) => formatCurrency(p.amount), align: 'right', sortAccessor: (p) => p.amount },
-    { key: 'method', header: 'Method', render: (p) => p.method, sortAccessor: (p) => p.method },
+    { key: 'method', header: 'Method', render: methodSummary, sortAccessor: (p) => methodSummary(p) },
     { key: 'collectedBy', header: 'Collected By', render: (p) => getName(p.collectedBy), sortAccessor: (p) => getName(p.collectedBy).toLowerCase() },
+    {
+      key: 'settlement',
+      header: 'Handover Status',
+      render: (p) => {
+        const collector = typeof p.collectedBy === 'object' ? p.collectedBy : undefined;
+        if (!collector || collector.role !== 'DRIVER') return null;
+        return p.settledToAdmin ? (
+          <Chip size="small" color="info" label="Received from Driver" />
+        ) : (
+          <Chip size="small" color="error" variant="outlined" label="With Driver — Not Given to Admin" />
+        );
+      },
+    },
   ];
   return (
     <DataTable
@@ -123,6 +142,10 @@ function PaymentsTab() {
       rows={data?.items ?? []}
       rowKey={(p) => p._id}
       loading={isFetching}
+      onRowClick={(p) => {
+        const orderId = typeof p.bill === 'object' ? getId(p.bill.order) : undefined;
+        if (orderId) navigate(`/orders/${orderId}`);
+      }}
       pagination={{ page, limit, total: data?.meta.total ?? 0, onPageChange: setPage, onLimitChange: setLimit }}
     />
   );

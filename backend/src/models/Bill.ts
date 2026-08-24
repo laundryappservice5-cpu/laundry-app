@@ -1,10 +1,10 @@
 import { Schema, model, Types } from 'mongoose';
 
 export type PaymentMethod = 'CASH' | 'UPI' | 'CARD';
-export type PaymentStatus = 'PENDING' | 'PAID';
+export type PaymentStatus = 'PENDING' | 'PARTIAL' | 'PAID';
 
 export interface IBillLineItem {
-  clothType: Types.ObjectId;
+  clothType?: Types.ObjectId | null;
   service: Types.ObjectId;
   quantity: number;
   unitPrice: number;
@@ -33,6 +33,7 @@ export interface IBill {
   discountHistory: IDiscount[];
   subtotal: number;
   finalAmount: number;
+  amountPaid: number;
   paymentMethod?: PaymentMethod;
   paymentStatus: PaymentStatus;
   generatedBy: Types.ObjectId;
@@ -58,7 +59,7 @@ const billSchema = new Schema<IBill>(
     invoiceNumber: { type: String, required: true, unique: true },
     lineItems: [
       {
-        clothType: { type: Schema.Types.ObjectId, ref: 'ClothType', required: true },
+        clothType: { type: Schema.Types.ObjectId, ref: 'ClothType' },
         service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
         quantity: { type: Number, required: true },
         unitPrice: { type: Number, required: true },
@@ -73,8 +74,9 @@ const billSchema = new Schema<IBill>(
     discountHistory: { type: [discountSchema], default: [] },
     subtotal: { type: Number, required: true },
     finalAmount: { type: Number, required: true },
+    amountPaid: { type: Number, default: 0 },
     paymentMethod: { type: String, enum: ['CASH', 'UPI', 'CARD'] },
-    paymentStatus: { type: String, enum: ['PENDING', 'PAID'], default: 'PENDING' },
+    paymentStatus: { type: String, enum: ['PENDING', 'PARTIAL', 'PAID'], default: 'PENDING' },
     generatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },

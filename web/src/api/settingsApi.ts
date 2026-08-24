@@ -8,8 +8,19 @@ export interface Settings {
   currency: Currency;
   address?: string;
   supportPhone?: string;
+  email?: string;
+  taxId?: string;
   homePickupCharge: number;
   homeDeliveryCharge: number;
+  latestApkUrl?: string;
+  latestApkVersion?: string;
+}
+
+export interface PublicAppInfo {
+  businessName: string;
+  latestApkUrl?: string;
+  latestApkVersion?: string;
+  updatedAt: string;
 }
 
 export const settingsApi = apiSlice.injectEndpoints({
@@ -18,12 +29,25 @@ export const settingsApi = apiSlice.injectEndpoints({
       query: () => ({ url: '/settings' }),
       providesTags: ['Settings'],
     }),
+    getPublicAppInfo: builder.query<PublicAppInfo, void>({
+      query: () => ({ url: '/settings/app-info' }),
+    }),
     updateSettings: builder.mutation<
       Settings,
       Partial<
         Pick<
           Settings,
-          'businessName' | 'taxRatePercent' | 'currency' | 'address' | 'supportPhone' | 'homePickupCharge' | 'homeDeliveryCharge'
+          | 'businessName'
+          | 'taxRatePercent'
+          | 'currency'
+          | 'address'
+          | 'supportPhone'
+          | 'email'
+          | 'taxId'
+          | 'homePickupCharge'
+          | 'homeDeliveryCharge'
+          | 'latestApkUrl'
+          | 'latestApkVersion'
         >
       >
     >({
@@ -33,4 +57,4 @@ export const settingsApi = apiSlice.injectEndpoints({
   }),
 });
 
-export const { useGetSettingsQuery, useUpdateSettingsMutation } = settingsApi;
+export const { useGetSettingsQuery, useGetPublicAppInfoQuery, useUpdateSettingsMutation } = settingsApi;

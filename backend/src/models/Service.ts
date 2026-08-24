@@ -4,6 +4,7 @@ export interface IService {
   _id: Types.ObjectId;
   name: string;
   isActive: boolean;
+  flatPrice?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -12,6 +13,10 @@ const serviceSchema = new Schema<IService>(
   {
     name: { type: String, required: true, unique: true, trim: true },
     isActive: { type: Boolean, default: true },
+    // When set, this service is a standalone flat-fee service (e.g. House Cleaning) —
+    // it isn't priced per cloth type, doesn't take collected items, and can't be
+    // combined with other services on the same order.
+    flatPrice: { type: Number, min: 0 },
   },
   { timestamps: true },
 );

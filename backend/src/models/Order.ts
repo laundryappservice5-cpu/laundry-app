@@ -49,7 +49,7 @@ const orderSchema = new Schema<IOrder>(
     isInStoreDelivery: { type: Boolean, default: false },
     collectedItems: [
       {
-        clothType: { type: Schema.Types.ObjectId, ref: 'ClothType', required: true },
+        clothType: { type: Schema.Types.ObjectId, ref: 'ClothType' },
         service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
         quantity: { type: Number, required: true, min: 1 },
       },

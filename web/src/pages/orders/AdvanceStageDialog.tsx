@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from '@mui/material';
 import { useAdvanceOrderStatusMutation } from '../../api/orderApi';
 import { ORDER_STAGE_LABELS } from '../../utils/constants';
 import type { OrderStage } from '../../types';
@@ -14,18 +13,12 @@ interface AdvanceStageDialogProps {
 
 export function AdvanceStageDialog({ open, orderId, fromStage, toStage, onClose }: AdvanceStageDialogProps) {
   const [advanceStatus, { isLoading, error }] = useAdvanceOrderStatusMutation();
-  const [itemCount, setItemCount] = useState('');
-  const [remarks, setRemarks] = useState('');
 
   async function handleConfirm() {
     await advanceStatus({
       id: orderId,
       status: toStage,
-      itemCount: itemCount === '' ? undefined : Number(itemCount),
-      remarks: remarks || undefined,
     }).unwrap();
-    setItemCount('');
-    setRemarks('');
     onClose();
   }
 
@@ -39,8 +32,6 @@ export function AdvanceStageDialog({ open, orderId, fromStage, toStage, onClose 
             This moves the order from "{ORDER_STAGE_LABELS[fromStage]}" to "{ORDER_STAGE_LABELS[toStage]}". This step is
             recorded in the order history and cannot be undone or skipped backwards.
           </Typography>
-          <TextField label="Item Count" type="number" value={itemCount} onChange={(e) => setItemCount(e.target.value)} fullWidth />
-          <TextField label="Notes" value={remarks} onChange={(e) => setRemarks(e.target.value)} fullWidth multiline minRows={2} />
         </Stack>
       </DialogContent>
       <DialogActions>

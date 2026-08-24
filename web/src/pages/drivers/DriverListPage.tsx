@@ -18,13 +18,16 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useCreateDriverMutation, useListDriversQuery, useSetDriverActiveMutation } from '../../api/driverApi';
+import { useGetPendingByDriverQuery } from '../../api/paymentApi';
 import { DataTable, type DataTableColumn } from '../../components/DataTable';
 import { CardGrid } from '../../components/CardGrid';
 import { ViewToggle } from '../../components/ViewToggle';
 import { useAppSelector } from '../../app/hooks';
 import { useClientPagination } from '../../hooks/useClientPagination';
+import { formatCurrency } from '../../utils/formatters';
 import type { PublicUser } from '../../types';
 import { DriverCard } from './DriverCard';
+import { DriverSettlementDialog } from './DriverSettlementDialog';
 
 const driverSchema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -43,9 +46,13 @@ export function DriverListPage() {
   const { data: drivers = [], isFetching } = useListDriversQuery(active === undefined ? undefined : { active });
   const [createDriver, { isLoading, error }] = useCreateDriverMutation();
   const [setDriverActive] = useSetDriverActiveMutation();
+  const { data: pendingByDriver = [] } = useGetPendingByDriverQuery();
   const [createOpen, setCreateOpen] = useState(false);
+  const [settlementDriver, setSettlementDriver] = useState<PublicUser | null>(null);
   const viewMode = useAppSelector((state) => state.ui.viewMode);
   const { pageItems, page, limit, total, onPageChange, onLimitChange } = useClientPagination(drivers, 10);
+
+  const pendingByDriverId = new Map(pendingByDriver.map((p) => [p.driverId, p]));
 
   function clearActiveFilter() {
     searchParams.delete('active');
@@ -69,6 +76,25 @@ export function DriverListPage() {
     { key: 'name', header: 'Name', render: (d) => d.name, sortAccessor: (d) => d.name.toLowerCase() },
     { key: 'mobile', header: 'Mobile', render: (d) => d.mobileNumber, sortAccessor: (d) => d.mobileNumber },
     { key: 'vehicle', header: 'Vehicle', render: (d) => d.vehicleNumber ?? '—', sortAccessor: (d) => d.vehicleNumber ?? '' },
+    {
+      key: 'cashToCollect',
+      header: 'Cash to Collect',
+      render: (d) => {
+        const pending = pendingByDriverId.get(d.id);
+        if (!pending) return <Typography variant="body2" color="text.secondary">—</Typography>;
+        return (
+          <Chip
+            size="small"
+            color="error"
+            variant="outlined"
+            label={`${formatCurrency(pending.totalPending)} (${pending.count})`}
+            onClick={() => setSettlementDriver(d)}
+          />
+        );
+      },
+      align: 'right',
+      sortAccessor: (d) => pendingByDriverId.get(d.id)?.totalPending ?? 0,
+    },
     {
       key: 'active',
       header: 'Active',
@@ -119,7 +145,14 @@ export function DriverListPage() {
           loading={isFetching}
           emptyMessage="No drivers yet"
           pagination={{ page, limit, total, onPageChange, onLimitChange }}
-          renderCard={(d) => <DriverCard driver={d} onToggleActive={(isActive) => setDriverActive({ id: d.id, isActive })} />}
+          renderCard={(d) => (
+            <DriverCard
+              driver={d}
+              onToggleActive={(isActive) => setDriverActive({ id: d.id, isActive })}
+              pendingAmount={pendingByDriverId.get(d.id)?.totalPending}
+              onOpenSettlement={() => setSettlementDriver(d)}
+            />
+          )}
         />
       )}
 
@@ -158,6 +191,15 @@ export function DriverListPage() {
           </DialogActions>
         </form>
       </Dialog>
+
+      {settlementDriver && (
+        <DriverSettlementDialog
+          open={Boolean(settlementDriver)}
+          driverId={settlementDriver.id}
+          driverName={settlementDriver.name}
+          onClose={() => setSettlementDriver(null)}
+        />
+      )}
     </Stack>
   );
 }

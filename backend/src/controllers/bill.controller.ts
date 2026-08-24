@@ -21,6 +21,6 @@ export const applyDiscount = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const recordPayment = asyncHandler(async (req: Request, res: Response) => {
-  const result = await billService.recordPayment(req.user!.userId, req.user!.role, req.params.id, req.body.amount, req.body.method);
+  const result = await billService.recordPayment(req.user!.userId, req.user!.role, req.params.id, req.body.splits);
   ok(res, result, 201);
 });

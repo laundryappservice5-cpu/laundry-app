@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Alert,
@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Divider,
   Grid,
   MenuItem,
@@ -20,7 +21,7 @@ import {
   useAssignDeliveryDriverMutation,
   useUpdateOrderItemsMutation,
 } from '../../api/orderApi';
-import { useGetBillByIdQuery } from '../../api/billApi';
+import { useGenerateBillMutation, useGetBillByIdQuery } from '../../api/billApi';
 import { useGetPickupByIdQuery, useUpdatePickupItemsMutation } from '../../api/pickupApi';
 import { useListDriversQuery } from '../../api/driverApi';
 import { OrderStageTimeline } from '../../components/OrderStageTimeline';
@@ -31,7 +32,8 @@ import { CollectedItemsEditor } from '../../components/CollectedItemsEditor';
 import { BillPdfDialog } from '../../components/BillPdfDialog';
 import { ORDER_STAGE_LABELS, ORDER_STAGE_LIST } from '../../utils/constants';
 import { formatCurrency, getId, getName } from '../../utils/formatters';
-import { GenerateBillDialog } from './GenerateBillDialog';
+import { printThermalReceipt } from '../../utils/thermalReceipt';
+import { useGetSettingsQuery } from '../../api/settingsApi';
 import { DiscountDialog } from './DiscountDialog';
 import { RecordPaymentDialog } from './RecordPaymentDialog';
 import { AdvanceStageDialog } from './AdvanceStageDialog';
@@ -46,17 +48,33 @@ export function OrderDetailPage() {
 
   const billId = order ? getId(order.bill) : undefined;
   const { data: bill } = useGetBillByIdQuery(billId!, { skip: !billId });
+  const { data: settings } = useGetSettingsQuery();
+  const [generateBill, { isLoading: isGeneratingBill }] = useGenerateBillMutation();
+  const generateAttemptedRef = useRef<string | null>(null);
 
   const pickupId = order ? getId(order.pickup) : undefined;
   const { data: pickup } = useGetPickupByIdQuery(pickupId!, { skip: !pickupId });
   const [updatePickupItems, { isLoading: isSavingItems }] = useUpdatePickupItemsMutation();
   const [updateOrderItems, { isLoading: isSavingOrderItems }] = useUpdateOrderItemsMutation();
 
-  const [generateBillOpen, setGenerateBillOpen] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [advanceConfirmOpen, setAdvanceConfirmOpen] = useState(false);
   const [pdfBill, setPdfBill] = useState<Bill | null>(null);
+
+  useEffect(() => {
+    if (!order || bill) return;
+    const idx = ORDER_STAGE_LIST.indexOf(order.currentStatus);
+    const eligible = idx >= ORDER_STAGE_LIST.indexOf('READY_FOR_DELIVERY');
+    if (!eligible) return;
+    if (generateAttemptedRef.current === order._id) return;
+    generateAttemptedRef.current = order._id;
+    generateBill({ orderId: order._id })
+      .unwrap()
+      .catch(() => {
+        generateAttemptedRef.current = null;
+      });
+  }, [order, bill, generateBill]);
 
   if (isLoading || !order) {
     return <Skeleton variant="rectangular" height={400} />;
@@ -143,14 +161,15 @@ export function OrderDetailPage() {
               Billing
             </Typography>
 
-            {(!bill || bill.paymentStatus !== 'PAID') && (
-              <Stack spacing={2} sx={{ mb: bill ? 2 : 0 }}>
-                {!canGenerateBill && (
-                  <Alert severity="info">A bill can be generated once the order reaches Ready for Delivery.</Alert>
-                )}
-                <Button variant="contained" disabled={!canGenerateBill} onClick={() => setGenerateBillOpen(true)}>
-                  {bill ? 'Regenerate Bill' : 'Generate Bill'}
-                </Button>
+            {!bill && !canGenerateBill && (
+              <Alert severity="info">A bill will be generated automatically once the order reaches Ready for Delivery.</Alert>
+            )}
+            {!bill && canGenerateBill && (
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <CircularProgress size={18} />
+                <Typography variant="body2" color="text.secondary">
+                  {isGeneratingBill ? 'Generating bill…' : 'Loading bill…'}
+                </Typography>
               </Stack>
             )}
 
@@ -200,8 +219,14 @@ export function OrderDetailPage() {
                   <Typography fontWeight={700}>{formatCurrency(bill.finalAmount)}</Typography>
                 </Stack>
                 <Chip
-                  label={bill.paymentStatus === 'PAID' ? `Paid via ${bill.paymentMethod}` : 'Payment Pending'}
-                  color={bill.paymentStatus === 'PAID' ? 'success' : 'warning'}
+                  label={
+                    bill.paymentStatus === 'PAID'
+                      ? `Paid via ${bill.paymentMethod}`
+                      : bill.paymentStatus === 'PARTIAL'
+                        ? `Partially Paid — ${formatCurrency(bill.finalAmount - bill.amountPaid)} due`
+                        : 'Payment Pending'
+                  }
+                  color={bill.paymentStatus === 'PAID' ? 'success' : bill.paymentStatus === 'PARTIAL' ? 'info' : 'warning'}
                   sx={{ alignSelf: 'flex-start' }}
                 />
 
@@ -209,14 +234,17 @@ export function OrderDetailPage() {
                   <Button variant="outlined" onClick={() => setPdfBill(bill)}>
                     View Invoice
                   </Button>
-                  {bill.paymentStatus !== 'PAID' && (
+                  <Button variant="outlined" onClick={() => printThermalReceipt(bill, order, settings)}>
+                    Print Receipt
+                  </Button>
+                  {bill.paymentStatus === 'PENDING' && (
                     <Button variant="outlined" onClick={() => setDiscountOpen(true)}>
                       Apply Discount
                     </Button>
                   )}
                   {bill.paymentStatus !== 'PAID' && (
                     <Button variant="contained" onClick={() => setPaymentOpen(true)}>
-                      Record Payment
+                      {bill.paymentStatus === 'PARTIAL' ? 'Collect Balance' : 'Record Payment'}
                     </Button>
                   )}
                 </Stack>
@@ -239,6 +267,7 @@ export function OrderDetailPage() {
                 saving={isSavingOrderItems}
                 onSave={async (updatedItems) => {
                   await updateOrderItems({ id: order._id, items: updatedItems });
+                  if (bill && bill.paymentStatus === 'PENDING') await generateBill({ orderId: order._id });
                 }}
               />
             ) : pickup ? (
@@ -247,6 +276,7 @@ export function OrderDetailPage() {
                 saving={isSavingItems}
                 onSave={async (updatedItems) => {
                   await updatePickupItems({ id: pickup._id, items: updatedItems });
+                  if (bill && bill.paymentStatus === 'PENDING') await generateBill({ orderId: order._id });
                 }}
               />
             ) : (
@@ -282,22 +312,13 @@ export function OrderDetailPage() {
         }}
       />
 
-      <GenerateBillDialog
-        open={generateBillOpen}
-        order={order}
-        onClose={() => setGenerateBillOpen(false)}
-        onGenerated={(generatedBill) => {
-          setGenerateBillOpen(false);
-          setPdfBill(generatedBill);
-        }}
-      />
       {pdfBill && <BillPdfDialog open={Boolean(pdfBill)} bill={pdfBill} order={order} onClose={() => setPdfBill(null)} />}
       {bill && <DiscountDialog open={discountOpen} billId={bill._id} onClose={() => setDiscountOpen(false)} />}
       {bill && (
         <RecordPaymentDialog
           open={paymentOpen}
           billId={bill._id}
-          defaultAmount={bill.finalAmount}
+          balanceDue={bill.finalAmount - bill.amountPaid}
           onClose={() => setPaymentOpen(false)}
         />
       )}

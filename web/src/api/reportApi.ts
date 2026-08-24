@@ -1,5 +1,5 @@
 import { apiSlice } from './apiSlice';
-import type { Bill, DashboardStats, Order, Payment } from '../types';
+import type { Bill, DashboardStats, Order, PaymentReportRow } from '../types';
 import { withPagination, type Paginated } from './types';
 
 interface RevenuePoint {
@@ -52,9 +52,9 @@ export const reportApi = apiSlice.injectEndpoints({
     getDiscountsReport: builder.query<Bill[], void>({
       query: () => ({ url: '/reports/discounts' }),
     }),
-    getPaymentsReport: builder.query<Paginated<Payment>, { page?: number; limit?: number }>({
+    getPaymentsReport: builder.query<Paginated<PaymentReportRow>, { page?: number; limit?: number }>({
       query: (params) => ({ url: '/reports/payments', params }),
-      transformResponse: withPagination<Payment>,
+      transformResponse: withPagination<PaymentReportRow>,
     }),
     getRepeatCustomers: builder.query<RepeatCustomer[], void>({
       query: () => ({ url: '/reports/repeat-customers' }),

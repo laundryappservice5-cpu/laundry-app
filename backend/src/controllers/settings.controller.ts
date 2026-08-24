@@ -9,6 +9,16 @@ export const getSettingsHandler = asyncHandler(async (_req: Request, res: Respon
   ok(res, settings);
 });
 
+export const getPublicAppInfoHandler = asyncHandler(async (_req: Request, res: Response) => {
+  const settings = await getSettings();
+  ok(res, {
+    businessName: settings.businessName,
+    latestApkUrl: settings.latestApkUrl,
+    latestApkVersion: settings.latestApkVersion,
+    updatedAt: settings.updatedAt,
+  });
+});
+
 export const updateSettingsHandler = asyncHandler(async (req: Request, res: Response) => {
   const before = await getSettings();
   const updated = await Settings.findByIdAndUpdate(before._id, req.body, { new: true });

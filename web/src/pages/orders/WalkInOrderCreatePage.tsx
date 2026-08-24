@@ -13,7 +13,7 @@ export function WalkInOrderCreatePage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
-  const [items, setItems] = useState<{ clothType: string; service: string; quantity: number }[]>([]);
+  const [items, setItems] = useState<{ clothType?: string; service: string; quantity: number }[]>([]);
   const [isExpressDelivery, setIsExpressDelivery] = useState(false);
   const [isInStoreDelivery, setIsInStoreDelivery] = useState(false);
   const [notes, setNotes] = useState('');

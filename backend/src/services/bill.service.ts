@@ -32,8 +32,8 @@ export const billService = {
     }
 
     const existing = await billRepository.findByOrder(orderId);
-    if (existing && existing.paymentStatus === 'PAID') {
-      throw ApiError.conflict('This bill has already been paid and cannot be regenerated');
+    if (existing && existing.paymentStatus !== 'PENDING') {
+      throw ApiError.conflict('This bill already has payments recorded and cannot be regenerated');
     }
 
     const collectedItems = order.pickup
@@ -42,8 +42,12 @@ export const billService = {
       : order.collectedItems;
 
     const lineItems = collectedItems.map((item) => {
+      const serviceDoc = item.service as unknown as { _id: Types.ObjectId; flatPrice?: number };
+      if (!item.clothType) {
+        const unitPrice = serviceDoc.flatPrice ?? 0;
+        return { service: serviceDoc._id, quantity: 1, unitPrice, lineTotal: unitPrice };
+      }
       const clothTypeDoc = item.clothType as unknown as { _id: Types.ObjectId; prices?: Map<string, number> };
-      const serviceDoc = item.service as unknown as { _id: Types.ObjectId };
       const unitPrice = clothTypeDoc.prices?.get(String(serviceDoc._id)) ?? 0;
       return {
         clothType: clothTypeDoc._id,
@@ -127,6 +131,7 @@ export const billService = {
     const bill = await billRepository.findById(billId);
     if (!bill) throw ApiError.notFound('Bill not found');
     if (bill.paymentStatus === 'PAID') throw ApiError.badRequest('Cannot apply a discount to an already paid bill');
+    if (bill.amountPaid > 0) throw ApiError.badRequest('Cannot apply a discount after a payment has been recorded');
     if (discountAmount > bill.finalAmount) throw ApiError.badRequest('Discount cannot exceed the bill amount');
 
     const originalAmount = bill.finalAmount;
@@ -143,30 +148,63 @@ export const billService = {
     return bill;
   },
 
-  async recordPayment(actorId: string, actorRole: UserRole, billId: string, amount: number, method: 'CASH' | 'UPI' | 'CARD') {
+  async recordPayment(
+    actorId: string,
+    actorRole: UserRole,
+    billId: string,
+    splits: { amount: number; method: 'CASH' | 'UPI' | 'CARD' }[],
+  ) {
     const bill = await billRepository.findById(billId);
     if (!bill) throw ApiError.notFound('Bill not found');
     if (bill.paymentStatus === 'PAID') throw ApiError.conflict('This bill has already been paid');
+    if (splits.length === 0) throw ApiError.badRequest('At least one payment amount is required');
 
-    const payment = await Payment.create({ bill: bill._id, amount, method, status: 'PAID', collectedBy: actorId });
+    const total = splits.reduce((sum, s) => sum + s.amount, 0);
+    const balanceDue = bill.finalAmount - (bill.amountPaid ?? 0);
+    if (total > balanceDue + 0.01) throw ApiError.badRequest('Amount exceeds the remaining balance due');
 
-    bill.paymentMethod = method;
-    if (amount >= bill.finalAmount) {
-      bill.paymentStatus = 'PAID';
-    }
+    const batchId = splits.length > 1 ? new Types.ObjectId() : undefined;
+    const settledToAdmin = actorRole !== 'DRIVER';
+    const payments = await Payment.insertMany(
+      splits.map((s) => ({
+        bill: bill._id,
+        amount: s.amount,
+        method: s.method,
+        status: 'PAID',
+        collectedBy: actorId,
+        batchId,
+        settledToAdmin,
+      })),
+    );
+
+    bill.paymentMethod = splits[splits.length - 1].method;
+    bill.amountPaid = (bill.amountPaid ?? 0) + total;
+    bill.paymentStatus = bill.amountPaid >= bill.finalAmount ? 'PAID' : 'PARTIAL';
     await bill.save();
 
-    await recordAudit({ actor: actorId, actorRole, action: 'RECORD_PAYMENT', entityType: 'Payment', entityId: payment._id, after: payment });
+    await recordAudit({
+      actor: actorId,
+      actorRole,
+      action: 'RECORD_PAYMENT',
+      entityType: 'Payment',
+      entityId: payments[0]._id,
+      after: { splits, total, batchId },
+    });
 
     const admins = await User.find({ role: { $in: ['ROOT_ADMIN', 'ADMIN'] } });
+    const remaining = bill.finalAmount - bill.amountPaid;
+    const methodSummary = splits.length > 1 ? splits.map((s) => `${s.method} ${s.amount}`).join(' + ') : splits[0].method;
     await notificationService.notifyMany(admins.map((a) => a._id), {
       type: 'PAYMENT_RECEIVED',
       title: 'Payment Received',
-      body: `Payment of ${amount} received via ${method} for invoice ${bill.invoiceNumber}.`,
+      body:
+        remaining > 0.01
+          ? `Partial payment of ${total} (${methodSummary}) received for invoice ${bill.invoiceNumber}. Balance due: ${remaining.toFixed(2)}.`
+          : `Payment of ${total} (${methodSummary}) received for invoice ${bill.invoiceNumber}.`,
       payload: { billId: String(bill._id) },
     });
 
-    return { bill, payment };
+    return { bill, payments };
   },
 
   findById: billRepository.findById,

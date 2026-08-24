@@ -125,9 +125,86 @@ describe('Billing gate', () => {
     await request(app)
       .post(`/api/bills/${billId}/payments`)
       .set('Authorization', `Bearer ${admin.accessToken}`)
-      .send({ amount: regenRes.body.data.finalAmount, method: 'CASH' });
+      .send({ splits: [{ amount: regenRes.body.data.finalAmount, method: 'CASH' }] });
 
     const blockedAfterPaidRes = await request(app).post(`/api/bills/orders/${order._id}/generate`).set('Authorization', `Bearer ${admin.accessToken}`).send({});
     expect(blockedAfterPaidRes.status).toBe(409);
+  });
+
+  it('supports collecting a bill across multiple partial payments', async () => {
+    const { admin, order } = await createOrderUpToPickedUp();
+    await advanceToReadyForDelivery(admin, order._id);
+
+    const genRes = await request(app)
+      .post(`/api/bills/orders/${order._id}/generate`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ taxes: 100 });
+    const billId = genRes.body.data._id;
+    const total = genRes.body.data.finalAmount;
+
+    const overpayRes = await request(app)
+      .post(`/api/bills/${billId}/payments`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ splits: [{ amount: total + 100, method: 'CASH' }] });
+    expect(overpayRes.status).toBe(400);
+
+    const partialRes = await request(app)
+      .post(`/api/bills/${billId}/payments`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ splits: [{ amount: total / 2, method: 'CASH' }] });
+    expect(partialRes.status).toBe(201);
+    expect(partialRes.body.data.bill.paymentStatus).toBe('PARTIAL');
+    expect(partialRes.body.data.bill.amountPaid).toBe(total / 2);
+
+    const finalRes = await request(app)
+      .post(`/api/bills/${billId}/payments`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ splits: [{ amount: total / 2, method: 'CARD' }] });
+    expect(finalRes.status).toBe(201);
+    expect(finalRes.body.data.bill.paymentStatus).toBe('PAID');
+    expect(finalRes.body.data.bill.amountPaid).toBe(total);
+
+    const blockedRes = await request(app)
+      .post(`/api/bills/${billId}/payments`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ splits: [{ amount: 1, method: 'CASH' }] });
+    expect(blockedRes.status).toBe(409);
+  });
+
+  it('records a cash+card split as one payment batch and groups it into a single row in the payments report', async () => {
+    const { admin, order } = await createOrderUpToPickedUp();
+    await advanceToReadyForDelivery(admin, order._id);
+
+    const genRes = await request(app)
+      .post(`/api/bills/orders/${order._id}/generate`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ taxes: 100 });
+    const billId = genRes.body.data._id;
+    const total = genRes.body.data.finalAmount;
+
+    const splitRes = await request(app)
+      .post(`/api/bills/${billId}/payments`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({
+        splits: [
+          { amount: total * 0.6, method: 'CASH' },
+          { amount: total * 0.4, method: 'CARD' },
+        ],
+      });
+    expect(splitRes.status).toBe(201);
+    expect(splitRes.body.data.bill.paymentStatus).toBe('PAID');
+    expect(splitRes.body.data.payments).toHaveLength(2);
+    expect(splitRes.body.data.payments[0].batchId).toBeDefined();
+    expect(splitRes.body.data.payments[0].batchId).toBe(splitRes.body.data.payments[1].batchId);
+
+    const reportRes = await request(app)
+      .get('/api/reports/payments')
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .query({ page: 1, limit: 20 });
+    expect(reportRes.status).toBe(200);
+    const row = reportRes.body.data.find((r: { legs: unknown[] }) => r.legs.length === 2);
+    expect(row).toBeDefined();
+    expect(row.amount).toBe(total);
+    expect(row.legs.map((l: { method: string }) => l.method).sort()).toEqual(['CARD', 'CASH']);
   });
 });

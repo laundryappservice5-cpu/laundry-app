@@ -3,6 +3,7 @@ import { useAppSelector } from '../app/hooks';
 import { ProtectedRoute } from './ProtectedRoute';
 import { AppShell } from '../layouts/AppShell';
 import { LoginPage } from '../pages/LoginPage';
+import { DownloadAppPage } from '../pages/DownloadAppPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { CustomerListPage } from '../pages/customers/CustomerListPage';
 import { CustomerDetailPage } from '../pages/customers/CustomerDetailPage';
@@ -24,6 +25,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/download-app" element={<DownloadAppPage />} />
 
       <Route element={<ProtectedRoute allowedRoles={['ROOT_ADMIN', 'ADMIN']} />}>
         <Route element={<AppShell />}>

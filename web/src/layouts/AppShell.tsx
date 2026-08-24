@@ -4,6 +4,7 @@ import {
   AppBar,
   Avatar,
   Box,
+  Button,
   Divider,
   Drawer,
   IconButton,
@@ -13,6 +14,7 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  Stack,
   Toolbar,
   Tooltip,
   Typography,
@@ -27,6 +29,8 @@ import AssessmentIcon from '@mui/icons-material/AssessmentOutlined';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
 import { toggleThemeMode } from '../features/ui/uiSlice';
@@ -99,9 +103,28 @@ export function AppShell() {
       <Box sx={{ flexGrow: 1 }}>
         <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
           <Toolbar sx={{ gap: 2 }}>
-            <Box sx={{ flexGrow: 1 }}>
-              <GlobalSearchBar />
-            </Box>
+            <GlobalSearchBar />
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AddCircleOutlineIcon />}
+                onClick={() => navigate('/pickups/new')}
+                sx={{ whiteSpace: 'nowrap' }}
+              >
+                New Pickup
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<StorefrontOutlinedIcon />}
+                onClick={() => navigate('/orders/walk-in')}
+                sx={{ whiteSpace: 'nowrap' }}
+              >
+                Walk-in Order
+              </Button>
+            </Stack>
+            <Box sx={{ flexGrow: 1 }} />
             <Tooltip title="Toggle theme">
               <IconButton onClick={() => dispatch(toggleThemeMode())}>
                 {themeMode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}

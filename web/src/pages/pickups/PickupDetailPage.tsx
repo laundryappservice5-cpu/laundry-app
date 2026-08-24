@@ -124,7 +124,7 @@ export function PickupDetailPage() {
                 <Stack spacing={0.5} mb={2}>
                   {pickup.collectedItems.map((item, idx) => (
                     <Typography key={idx} variant="body2">
-                      {getName(item.clothType)} · {getName(item.service)} — {item.quantity}
+                      {item.clothType ? `${getName(item.clothType)} · ${getName(item.service)} — ${item.quantity}` : `${getName(item.service)} (flat fee)`}
                     </Typography>
                   ))}
                 </Stack>

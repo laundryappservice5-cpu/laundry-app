@@ -7,6 +7,7 @@ import {
   createServiceSchema,
   updateServiceSchema,
   setClothTypePriceSchema,
+  setClothTypeIconSchema,
 } from '../validators/catalog.validators';
 
 const clothTypeRouter = Router();
@@ -19,11 +20,19 @@ clothTypeRouter.patch(
   validateBody(setClothTypePriceSchema),
   catalogController.setClothTypePrice,
 );
+clothTypeRouter.patch(
+  '/:id/icon',
+  requireRole('ROOT_ADMIN', 'ADMIN'),
+  validateBody(setClothTypeIconSchema),
+  catalogController.setClothTypeIcon,
+);
+clothTypeRouter.delete('/:id', requireRole('ROOT_ADMIN', 'ADMIN'), catalogController.deleteClothType);
 
 const serviceRouter = Router();
 serviceRouter.use(requireAuth);
 serviceRouter.get('/', catalogController.listServices);
 serviceRouter.post('/', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(createServiceSchema), catalogController.createService);
 serviceRouter.patch('/:id', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(updateServiceSchema), catalogController.updateService);
+serviceRouter.delete('/:id', requireRole('ROOT_ADMIN', 'ADMIN'), catalogController.deleteService);
 
 export { clothTypeRouter, serviceRouter };

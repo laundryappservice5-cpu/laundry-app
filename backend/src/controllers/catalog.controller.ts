@@ -14,9 +14,34 @@ export const listClothTypes = asyncHandler(async (_req: Request, res: Response) 
 export const createClothType = asyncHandler(async (req: Request, res: Response) => {
   const existing = await ClothType.findOne({ name: req.body.name });
   if (existing) throw ApiError.conflict('This cloth type already exists');
-  const clothType = await ClothType.create({ name: req.body.name, isCustom: true, createdBy: req.user!.userId });
+  const clothType = await ClothType.create({
+    name: req.body.name,
+    icon: req.body.icon,
+    isCustom: true,
+    createdBy: req.user!.userId,
+  });
   await recordAudit({ actor: req.user!.userId, actorRole: req.user!.role, action: 'CREATE_CLOTH_TYPE', entityType: 'ClothType', entityId: clothType._id, after: clothType });
   ok(res, clothType, 201);
+});
+
+export const setClothTypeIcon = asyncHandler(async (req: Request, res: Response) => {
+  const clothType = await ClothType.findById(req.params.id);
+  if (!clothType) throw ApiError.notFound('Cloth type not found');
+
+  const before = clothType.icon;
+  clothType.icon = req.body.icon;
+  await clothType.save();
+
+  await recordAudit({
+    actor: req.user!.userId,
+    actorRole: req.user!.role,
+    action: 'SET_CLOTH_TYPE_ICON',
+    entityType: 'ClothType',
+    entityId: clothType._id,
+    before: { icon: before },
+    after: { icon: req.body.icon },
+  });
+  ok(res, clothType);
 });
 
 export const setClothTypePrice = asyncHandler(async (req: Request, res: Response) => {
@@ -37,6 +62,21 @@ export const setClothTypePrice = asyncHandler(async (req: Request, res: Response
     after: { service: req.body.service, price: req.body.price },
   });
   ok(res, clothType);
+});
+
+export const deleteClothType = asyncHandler(async (req: Request, res: Response) => {
+  const clothType = await ClothType.findById(req.params.id);
+  if (!clothType) throw ApiError.notFound('Cloth type not found');
+  await ClothType.deleteOne({ _id: req.params.id });
+  await recordAudit({
+    actor: req.user!.userId,
+    actorRole: req.user!.role,
+    action: 'DELETE_CLOTH_TYPE',
+    entityType: 'ClothType',
+    entityId: clothType._id,
+    before: clothType,
+  });
+  ok(res, { deleted: true });
 });
 
 export const listServices = asyncHandler(async (_req: Request, res: Response) => {
@@ -66,4 +106,19 @@ export const updateService = asyncHandler(async (req: Request, res: Response) =>
     after: service,
   });
   ok(res, service);
+});
+
+export const deleteService = asyncHandler(async (req: Request, res: Response) => {
+  const service = await Service.findById(req.params.id);
+  if (!service) throw ApiError.notFound('Service not found');
+  await Service.deleteOne({ _id: req.params.id });
+  await recordAudit({
+    actor: req.user!.userId,
+    actorRole: req.user!.role,
+    action: 'DELETE_SERVICE',
+    entityType: 'Service',
+    entityId: service._id,
+    before: service,
+  });
+  ok(res, { deleted: true });
 });
