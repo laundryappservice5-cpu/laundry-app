@@ -39,7 +39,7 @@ export const reportService = {
       Order.countDocuments({ currentStatus: 'READY_FOR_DELIVERY' }),
       Order.countDocuments({ $or: [{ isExpressPickup: true }, { isExpressDelivery: true }], currentStatus: { $ne: 'DELIVERED' } }),
       Order.countDocuments({ currentStatus: 'DELIVERED', updatedAt: { $gte: today } }),
-      Bill.countDocuments({ paymentStatus: 'PENDING' }),
+      Bill.countDocuments({ paymentStatus: { $in: ['PENDING', 'PARTIAL'] } }),
       Payment.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
       Payment.aggregate([{ $match: { createdAt: { $gte: monthStart } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
       Customer.countDocuments(),
@@ -101,10 +101,25 @@ export const reportService = {
   },
 
   async paymentsReport(skip: number, limit: number) {
-    return Promise.all([
-      Payment.find().sort({ createdAt: -1 }).skip(skip).limit(limit).populate('bill').populate('collectedBy'),
-      Payment.countDocuments(),
+    const groupStage = {
+      $group: {
+        _id: { $ifNull: ['$batchId', '$_id'] },
+        createdAt: { $min: '$createdAt' },
+        bill: { $first: '$bill' },
+        collectedBy: { $first: '$collectedBy' },
+        amount: { $sum: '$amount' },
+        legs: { $push: { amount: '$amount', method: '$method' } },
+        settledToAdmin: { $first: '$settledToAdmin' },
+      },
+    };
+
+    const [rows, totalAgg] = await Promise.all([
+      Payment.aggregate([{ $sort: { createdAt: -1 } }, groupStage, { $sort: { createdAt: -1 } }, { $skip: skip }, { $limit: limit }]),
+      Payment.aggregate([groupStage, { $count: 'total' }]),
     ]);
+
+    const populated = await Payment.populate(rows, [{ path: 'bill' }, { path: 'collectedBy' }]);
+    return [populated, totalAgg[0]?.total ?? 0] as const;
   },
 
   async repeatCustomers() {

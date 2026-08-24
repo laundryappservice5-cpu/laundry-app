@@ -65,11 +65,21 @@ export function StoreDropoffDetailScreen() {
         <Text style={styles.label}>Collected Items</Text>
         {pickup?.collectedItems.length ? (
           pickup.collectedItems.map((item, idx) => {
-            const name = typeof item.clothType === 'string' ? item.clothType : item.clothType.name;
             const serviceName = typeof item.service === 'string' ? item.service : item.service.name;
+            if (!item.clothType) {
+              return (
+                <View key={idx} style={styles.itemRow}>
+                  <Text style={styles.itemIcon}>🏠</Text>
+                  <Text style={styles.itemName}>
+                    {serviceName} <Text style={styles.itemService}>· flat fee</Text>
+                  </Text>
+                </View>
+              );
+            }
+            const name = typeof item.clothType === 'string' ? item.clothType : item.clothType.name;
             return (
               <View key={idx} style={styles.itemRow}>
-                <Text style={styles.itemIcon}>{getClothTypeIcon(name)}</Text>
+                <Text style={styles.itemIcon}>{getClothTypeIcon(item.clothType)}</Text>
                 <Text style={styles.itemName}>
                   {name} <Text style={styles.itemService}>· {serviceName}</Text>
                 </Text>

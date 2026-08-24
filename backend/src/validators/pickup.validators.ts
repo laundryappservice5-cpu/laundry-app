@@ -26,11 +26,11 @@ export const assignDriverSchema = z.object({
 });
 
 export const collectedItemsSchema = z.object({
-  items: z.array(z.object({ clothType: z.string().min(1), service: z.string().min(1), quantity: z.number().int().min(1) })).min(1),
+  items: z.array(z.object({ clothType: z.string().min(1).optional(), service: z.string().min(1), quantity: z.number().int().min(1) })).min(1),
 });
 
 export const completePickupSchema = z.object({
-  items: z.array(z.object({ clothType: z.string().min(1), service: z.string().min(1), quantity: z.number().int().min(1) })).min(1),
+  items: z.array(z.object({ clothType: z.string().min(1).optional(), service: z.string().min(1), quantity: z.number().int().min(1) })).min(1),
   images: z.array(z.string()).optional(),
   pickupRemarks: z.string().optional(),
   damagedItemNotes: z.string().optional(),

@@ -1,5 +1,5 @@
 import { apiSlice } from './apiSlice';
-import type { Bill, PaymentMethod } from '../types';
+import type { Bill, PaymentLeg } from '../types';
 
 export const billApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -7,8 +7,8 @@ export const billApi = apiSlice.injectEndpoints({
       query: (id) => ({ url: `/bills/${id}` }),
       providesTags: ['Bill'],
     }),
-    recordPayment: builder.mutation<{ bill: Bill }, { id: string; amount: number; method: PaymentMethod }>({
-      query: ({ id, amount, method }) => ({ url: `/bills/${id}/payments`, method: 'POST', data: { amount, method } }),
+    recordPayment: builder.mutation<{ bill: Bill }, { id: string; splits: PaymentLeg[] }>({
+      query: ({ id, splits }) => ({ url: `/bills/${id}/payments`, method: 'POST', data: { splits } }),
       invalidatesTags: ['Bill', 'Order'],
     }),
   }),

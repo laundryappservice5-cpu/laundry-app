@@ -4,6 +4,7 @@ export interface IClothType {
   _id: Types.ObjectId;
   name: string;
   isCustom: boolean;
+  icon?: string;
   prices: Map<string, number>;
   createdBy?: Types.ObjectId;
   createdAt: Date;
@@ -14,6 +15,7 @@ const clothTypeSchema = new Schema<IClothType>(
   {
     name: { type: String, required: true, unique: true, trim: true },
     isCustom: { type: Boolean, default: false },
+    icon: { type: String },
     prices: { type: Map, of: Number, default: {} },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },

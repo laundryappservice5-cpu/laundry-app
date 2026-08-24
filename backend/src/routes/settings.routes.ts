@@ -6,6 +6,8 @@ import { updateSettingsSchema } from '../validators/settings.validators';
 
 const router = Router();
 
+router.get('/app-info', settingsController.getPublicAppInfoHandler);
+
 router.use(requireAuth);
 
 router.get('/', settingsController.getSettingsHandler);

@@ -47,7 +47,7 @@ export const orderApi = apiSlice.injectEndpoints({
       Order,
       {
         customer: string;
-        items: { clothType: string; service: string; quantity: number }[];
+        items: { clothType?: string; service: string; quantity: number }[];
         isExpressDelivery?: boolean;
         isInStoreDelivery?: boolean;
         notes?: string;
@@ -56,7 +56,7 @@ export const orderApi = apiSlice.injectEndpoints({
       query: (data) => ({ url: '/orders/walk-in', method: 'POST', data }),
       invalidatesTags: ['Order'],
     }),
-    updateOrderItems: builder.mutation<Order, { id: string; items: { clothType: string; service: string; quantity: number }[] }>({
+    updateOrderItems: builder.mutation<Order, { id: string; items: { clothType?: string; service: string; quantity: number }[] }>({
       query: ({ id, items }) => ({ url: `/orders/${id}/items`, method: 'PATCH', data: { items } }),
       invalidatesTags: ['Order'],
     }),

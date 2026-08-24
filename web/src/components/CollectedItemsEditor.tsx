@@ -26,21 +26,25 @@ import type { ClothType, CollectedItem, Service } from '../types';
 import { getId, formatCurrency } from '../utils/formatters';
 
 interface CartEntry {
-  clothType: ClothType;
+  clothType: ClothType | null;
   service: Service;
   quantity: number;
 }
 
 interface CollectedItemsEditorProps {
   items: CollectedItem[];
-  onSave: (items: { clothType: string; service: string; quantity: number }[]) => void | Promise<void>;
+  onSave: (items: { clothType?: string; service: string; quantity: number }[]) => void | Promise<void>;
   saving?: boolean;
-  onChange?: (items: { clothType: string; service: string; quantity: number }[]) => void;
+  onChange?: (items: { clothType?: string; service: string; quantity: number }[]) => void;
   hideSaveButton?: boolean;
 }
 
 function cartKey(clothTypeId: string, serviceId: string): string {
   return `${clothTypeId}::${serviceId}`;
+}
+
+function flatKey(serviceId: string): string {
+  return `flat::${serviceId}`;
 }
 
 const ALL_TAB = '__all__';
@@ -49,6 +53,8 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
   const { data: clothTypes = [] } = useListClothTypesQuery();
   const { data: services = [] } = useListServicesQuery();
   const [createClothType, { isLoading: isCreatingType }] = useCreateClothTypeMutation();
+
+  const itemizedServices = services.filter((s) => s.flatPrice == null);
 
   const [activeService, setActiveService] = useState<string>('');
   const [discountAmount, setDiscountAmount] = useState(0);
@@ -60,11 +66,17 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
   const [cart, setCart] = useState<Map<string, CartEntry>>(() => {
     const map = new Map<string, CartEntry>();
     for (const item of items) {
-      const ct = typeof item.clothType === 'string' ? clothTypes.find((c) => c._id === item.clothType) : item.clothType;
       const svc = typeof item.service === 'string' ? services.find((s) => s._id === item.service) : item.service;
-      const clothTypeId = getId(item.clothType);
       const serviceId = getId(item.service);
-      if (clothTypeId && serviceId && ct && svc) {
+      if (!serviceId || !svc) continue;
+
+      if (!item.clothType) {
+        map.set(flatKey(serviceId), { clothType: null, service: svc, quantity: 1 });
+        continue;
+      }
+      const ct = typeof item.clothType === 'string' ? clothTypes.find((c) => c._id === item.clothType) : item.clothType;
+      const clothTypeId = getId(item.clothType);
+      if (clothTypeId && ct) {
         map.set(cartKey(clothTypeId, serviceId), { clothType: ct, service: svc, quantity: item.quantity });
       }
     }
@@ -87,15 +99,24 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
   }
 
   function lineTotal(entry: CartEntry): number {
+    if (!entry.clothType) return entry.service.flatPrice ?? 0;
     return (priceFor(entry.clothType, entry.service._id) ?? 0) * entry.quantity;
   }
+
+  const hasFlatEntry = useMemo(() => [...cart.values()].some((e) => !e.clothType), [cart]);
 
   const totalQty = useMemo(() => [...cart.values()].reduce((sum, e) => sum + e.quantity, 0), [cart]);
   const totalAmount = useMemo(() => [...cart.values()].reduce((sum, e) => sum + lineTotal(e), 0), [cart]);
   const totalAfterDiscount = Math.max(0, totalAmount - (discountAmount || 0));
 
   useEffect(() => {
-    onChange?.([...cart.values()].map((e) => ({ clothType: e.clothType._id, service: e.service._id, quantity: e.quantity })));
+    onChange?.(
+      [...cart.values()].map((e) => ({
+        clothType: e.clothType?._id,
+        service: e.service._id,
+        quantity: e.quantity,
+      })),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart]);
 
@@ -109,6 +130,13 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
       next.set(key, { clothType, service, quantity: (existing?.quantity ?? 0) + 1 });
       return next;
     });
+    setDirty(true);
+  }
+
+  function addFlatFeeToCart(service: Service) {
+    // A flat-fee service (e.g. House Cleaning) is a standalone, one-direct-charge
+    // service — it replaces everything else in the cart rather than adding to it.
+    setCart(new Map([[flatKey(service._id), { clothType: null, service, quantity: 1 }]]));
     setDirty(true);
   }
 
@@ -146,7 +174,9 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
   }
 
   async function handleSave() {
-    await onSave([...cart.values()].map((e) => ({ clothType: e.clothType._id, service: e.service._id, quantity: e.quantity })));
+    await onSave(
+      [...cart.values()].map((e) => ({ clothType: e.clothType?._id, service: e.service._id, quantity: e.quantity })),
+    );
     setDirty(false);
   }
 
@@ -154,6 +184,9 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
     await handleSave();
     setConfirmOpen(false);
   }
+
+  const activeServiceDoc = services.find((s) => s._id === activeService);
+  const isFlatFeeActive = activeServiceDoc?.flatPrice != null;
 
   return (
     <Grid container spacing={2}>
@@ -176,6 +209,39 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
 
           <Stack spacing={1}>
             {[...cart.entries()].map(([key, entry]) => {
+              if (!entry.clothType) {
+                return (
+                  <Grow in key={key}>
+                    <Stack
+                      spacing={0.5}
+                      sx={{
+                        p: 1,
+                        borderRadius: 2,
+                        bgcolor: 'action.hover',
+                        transition: 'background-color 0.15s ease',
+                      }}
+                    >
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography fontSize={22}>🏠</Typography>
+                        <Typography fontWeight={600} sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
+                          {entry.service.name}
+                        </Typography>
+                        <IconButton size="small" onClick={() => removeFromCart(key)}>
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                        <Typography variant="caption" color="text.secondary">
+                          Flat fee — direct service
+                        </Typography>
+                        <Typography fontWeight={700} color="primary.main">
+                          {formatCurrency(lineTotal(entry))}
+                        </Typography>
+                      </Stack>
+                    </Stack>
+                  </Grow>
+                );
+              }
               const price = priceFor(entry.clothType, entry.service._id);
               return (
                 <Grow in key={key}>
@@ -189,7 +255,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
                     }}
                   >
                     <Stack direction="row" alignItems="center" spacing={1}>
-                      <Typography fontSize={22}>{getClothTypeIcon(entry.clothType.name)}</Typography>
+                      <Typography fontSize={22}>{getClothTypeIcon(entry.clothType)}</Typography>
                       <Typography fontWeight={600} sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
                         {entry.clothType.name}
                       </Typography>
@@ -265,175 +331,208 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
             scrollButtons="auto"
             sx={{ mb: 2, borderBottom: 1, borderColor: 'divider', minHeight: 40 }}
           >
-            {services.map((svc) => (
-              <Tab key={svc._id} label={svc.name} value={svc._id} sx={{ minHeight: 40 }} />
-            ))}
-            <Tab key={ALL_TAB} label="All" value={ALL_TAB} sx={{ minHeight: 40 }} />
+            {services.map((svc) => {
+              const isFlat = svc.flatPrice != null;
+              // House Cleaning stays clickable no matter what's already in the cart — picking it is
+              // what clears everything else. Only itemized tabs get locked out once it's in the cart.
+              const disabled = !isFlat && hasFlatEntry;
+              return (
+                <Tab
+                  key={svc._id}
+                  label={isFlat ? `🏠 ${svc.name}` : svc.name}
+                  value={svc._id}
+                  disabled={disabled}
+                  sx={{ minHeight: 40 }}
+                />
+              );
+            })}
+            <Tab key={ALL_TAB} label="All" value={ALL_TAB} disabled={hasFlatEntry} sx={{ minHeight: 40 }} />
           </Tabs>
 
-          <TextField
-            placeholder="Search cloth types…"
-            size="small"
-            fullWidth
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <Grid container spacing={1.5}>
-            {filteredTypes.map((ct) => {
-              const isAll = activeService === ALL_TAB;
+          {isFlatFeeActive && activeServiceDoc ? (
+            <Stack spacing={2} alignItems="center" sx={{ py: 4 }}>
+              <Typography fontSize={40}>🏠</Typography>
+              <Typography variant="subtitle1" fontWeight={700}>
+                {activeServiceDoc.name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" textAlign="center">
+                A direct, one-time service — no items needed. Adding it charges one flat amount and clears any other items
+                already in the cart.
+              </Typography>
+              <Typography variant="h5" fontWeight={800} color="primary.main">
+                {formatCurrency(activeServiceDoc.flatPrice ?? 0)}
+              </Typography>
+              <Button variant="contained" onClick={() => addFlatFeeToCart(activeServiceDoc)}>
+                {cart.has(flatKey(activeServiceDoc._id)) ? 'Added' : `Add ${activeServiceDoc.name}`}
+              </Button>
+            </Stack>
+          ) : (
+            <>
+              <TextField
+                placeholder="Search cloth types…"
+                size="small"
+                fullWidth
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                sx={{ mb: 2 }}
+              />
+              <Grid container spacing={1.5}>
+                {filteredTypes.map((ct) => {
+                  const isAll = activeService === ALL_TAB;
 
-              if (isAll) {
-                const pricedServices = services.filter((svc) => priceFor(ct, svc._id) !== undefined);
-                const totalQtyForType = [...cart.values()]
-                  .filter((e) => e.clothType._id === ct._id)
-                  .reduce((sum, e) => sum + e.quantity, 0);
-                return (
-                  <Grid key={ct._id} size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
-                    <Card variant="outlined" sx={{ p: 1.5, position: 'relative' }}>
-                      {totalQtyForType > 0 && (
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            top: 4,
-                            right: 4,
-                            bgcolor: 'primary.main',
-                            color: 'primary.contrastText',
-                            borderRadius: '50%',
-                            width: 20,
-                            height: 20,
-                            fontSize: 12,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {totalQtyForType}
-                        </Box>
-                      )}
-                      <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-                        <Typography fontSize={24}>{getClothTypeIcon(ct.name)}</Typography>
-                        <Typography variant="body2" fontWeight={600}>
+                  if (isAll) {
+                    const pricedServices = itemizedServices.filter((svc) => priceFor(ct, svc._id) !== undefined);
+                    const totalQtyForType = [...cart.values()]
+                      .filter((e) => e.clothType?._id === ct._id)
+                      .reduce((sum, e) => sum + e.quantity, 0);
+                    return (
+                      <Grid key={ct._id} size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
+                        <Card variant="outlined" sx={{ p: 1.5, position: 'relative' }}>
+                          {totalQtyForType > 0 && (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                top: 4,
+                                right: 4,
+                                bgcolor: 'primary.main',
+                                color: 'primary.contrastText',
+                                borderRadius: '50%',
+                                width: 20,
+                                height: 20,
+                                fontSize: 12,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {totalQtyForType}
+                            </Box>
+                          )}
+                          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+                            <Typography fontSize={24}>{getClothTypeIcon(ct)}</Typography>
+                            <Typography variant="body2" fontWeight={600}>
+                              {ct.name}
+                            </Typography>
+                          </Stack>
+                          {pricedServices.length === 0 ? (
+                            <Typography variant="caption" color="text.disabled">
+                              No prices set
+                            </Typography>
+                          ) : (
+                            <Stack spacing={0.5}>
+                              {pricedServices.map((svc) => {
+                                const price = priceFor(ct, svc._id)!;
+                                const qty = cart.get(cartKey(ct._id, svc._id))?.quantity ?? 0;
+                                return (
+                                  <Stack
+                                    key={svc._id}
+                                    direction="row"
+                                    justifyContent="space-between"
+                                    alignItems="center"
+                                    onClick={() => addToCart(ct, svc)}
+                                    sx={{
+                                      px: 1,
+                                      py: 0.5,
+                                      borderRadius: 1,
+                                      cursor: 'pointer',
+                                      bgcolor: qty > 0 ? 'action.selected' : 'action.hover',
+                                      '&:hover': { bgcolor: 'action.selected' },
+                                    }}
+                                  >
+                                    <Typography variant="caption">{svc.name}</Typography>
+                                    <Typography variant="caption" fontWeight={700} color="primary.main">
+                                      {formatCurrency(price)}
+                                      {qty > 0 ? ` ×${qty}` : ''}
+                                    </Typography>
+                                  </Stack>
+                                );
+                              })}
+                            </Stack>
+                          )}
+                        </Card>
+                      </Grid>
+                    );
+                  }
+
+                  const key = activeService ? cartKey(ct._id, activeService) : '';
+                  const qty = cart.get(key)?.quantity ?? 0;
+                  const price = activeService ? priceFor(ct, activeService) : undefined;
+                  return (
+                    <Grid key={ct._id} size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
+                      <Card
+                        variant="outlined"
+                        onClick={() => addToCart(ct)}
+                        sx={{
+                          p: 1.5,
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                          '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 },
+                          '&:active': { transform: 'scale(0.96)' },
+                          position: 'relative',
+                        }}
+                      >
+                        {qty > 0 && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: 4,
+                              right: 4,
+                              bgcolor: 'primary.main',
+                              color: 'primary.contrastText',
+                              borderRadius: '50%',
+                              width: 20,
+                              height: 20,
+                              fontSize: 12,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {qty}
+                          </Box>
+                        )}
+                        <Typography fontSize={28}>{getClothTypeIcon(ct)}</Typography>
+                        <Typography variant="caption" noWrap display="block">
                           {ct.name}
                         </Typography>
-                      </Stack>
-                      {pricedServices.length === 0 ? (
-                        <Typography variant="caption" color="text.disabled">
-                          No prices set
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{ overflowWrap: 'break-word' }}
+                          color={price !== undefined ? 'primary.main' : 'text.disabled'}
+                          fontWeight={600}
+                        >
+                          {price !== undefined ? formatCurrency(price) : 'Not set'}
                         </Typography>
-                      ) : (
-                        <Stack spacing={0.5}>
-                          {pricedServices.map((svc) => {
-                            const price = priceFor(ct, svc._id)!;
-                            const qty = cart.get(cartKey(ct._id, svc._id))?.quantity ?? 0;
-                            return (
-                              <Stack
-                                key={svc._id}
-                                direction="row"
-                                justifyContent="space-between"
-                                alignItems="center"
-                                onClick={() => addToCart(ct, svc)}
-                                sx={{
-                                  px: 1,
-                                  py: 0.5,
-                                  borderRadius: 1,
-                                  cursor: 'pointer',
-                                  bgcolor: qty > 0 ? 'action.selected' : 'action.hover',
-                                  '&:hover': { bgcolor: 'action.selected' },
-                                }}
-                              >
-                                <Typography variant="caption">{svc.name}</Typography>
-                                <Typography variant="caption" fontWeight={700} color="primary.main">
-                                  {formatCurrency(price)}
-                                  {qty > 0 ? ` ×${qty}` : ''}
-                                </Typography>
-                              </Stack>
-                            );
-                          })}
-                        </Stack>
-                      )}
-                    </Card>
-                  </Grid>
-                );
-              }
-
-              const key = activeService ? cartKey(ct._id, activeService) : '';
-              const qty = cart.get(key)?.quantity ?? 0;
-              const price = activeService ? priceFor(ct, activeService) : undefined;
-              return (
-                <Grid key={ct._id} size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+                <Grid size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
                   <Card
                     variant="outlined"
-                    onClick={() => addToCart(ct)}
+                    onClick={() => setAddTypeOpen(true)}
                     sx={{
                       p: 1.5,
                       textAlign: 'center',
                       cursor: 'pointer',
-                      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                      '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 },
-                      '&:active': { transform: 'scale(0.96)' },
-                      position: 'relative',
+                      borderStyle: 'dashed',
+                      transition: 'transform 0.15s ease',
+                      '&:hover': { transform: 'translateY(-2px)' },
                     }}
                   >
-                    {qty > 0 && (
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          top: 4,
-                          right: 4,
-                          bgcolor: 'primary.main',
-                          color: 'primary.contrastText',
-                          borderRadius: '50%',
-                          width: 20,
-                          height: 20,
-                          fontSize: 12,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {qty}
-                      </Box>
-                    )}
-                    <Typography fontSize={28}>{getClothTypeIcon(ct.name)}</Typography>
+                    <Typography fontSize={28}>➕</Typography>
                     <Typography variant="caption" noWrap display="block">
-                      {ct.name}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      display="block"
-                      sx={{ overflowWrap: 'break-word' }}
-                      color={price !== undefined ? 'primary.main' : 'text.disabled'}
-                      fontWeight={600}
-                    >
-                      {price !== undefined ? formatCurrency(price) : 'Not set'}
+                      New Type
                     </Typography>
                   </Card>
                 </Grid>
-              );
-            })}
-            <Grid size={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
-              <Card
-                variant="outlined"
-                onClick={() => setAddTypeOpen(true)}
-                sx={{
-                  p: 1.5,
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  borderStyle: 'dashed',
-                  transition: 'transform 0.15s ease',
-                  '&:hover': { transform: 'translateY(-2px)' },
-                }}
-              >
-                <Typography fontSize={28}>➕</Typography>
-                <Typography variant="caption" noWrap display="block">
-                  New Type
-                </Typography>
-              </Card>
-            </Grid>
-          </Grid>
+              </Grid>
+            </>
+          )}
         </Card>
       </Grid>
 
@@ -465,14 +564,14 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
           <Stack spacing={1}>
             {[...cart.values()].map((e) => (
               <Stack
-                key={cartKey(e.clothType._id, e.service._id)}
+                key={e.clothType ? cartKey(e.clothType._id, e.service._id) : flatKey(e.service._id)}
                 direction="row"
                 justifyContent="space-between"
                 spacing={2}
                 sx={{ pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}
               >
                 <Typography variant="body2">
-                  {e.clothType.name} · {e.service.name} × {e.quantity}
+                  {e.clothType ? `${e.clothType.name} · ${e.service.name} × ${e.quantity}` : e.service.name}
                 </Typography>
                 <Typography variant="body2" fontWeight={600} sx={{ whiteSpace: 'nowrap' }}>
                   {formatCurrency(lineTotal(e))}

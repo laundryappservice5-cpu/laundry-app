@@ -17,7 +17,7 @@ export const assignDeliveryDriverSchema = z.object({
 });
 
 const itemWithServiceSchema = z.object({
-  clothType: z.string().min(1),
+  clothType: z.string().min(1).optional(),
   service: z.string().min(1),
   quantity: z.number().int().min(1),
 });

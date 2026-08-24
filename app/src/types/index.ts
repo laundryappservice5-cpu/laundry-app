@@ -31,6 +31,7 @@ export interface ClothType {
   _id: string;
   name: string;
   isCustom: boolean;
+  icon?: string;
   prices?: Record<string, number>;
 }
 
@@ -38,12 +39,13 @@ export interface Service {
   _id: string;
   name: string;
   isActive: boolean;
+  flatPrice?: number;
 }
 
 export type PickupStatus = 'CREATED' | 'DRIVER_ASSIGNED' | 'ACCEPTED' | 'PICKED_UP' | 'CANCELLED';
 
 export interface CollectedItem {
-  clothType: ClothType | string;
+  clothType?: ClothType | string;
   service: Service | string;
   quantity: number;
 }
@@ -103,7 +105,12 @@ export interface Order {
 }
 
 export type PaymentMethod = 'CASH' | 'UPI' | 'CARD';
-export type PaymentStatus = 'PENDING' | 'PAID';
+export type PaymentStatus = 'PENDING' | 'PARTIAL' | 'PAID';
+
+export interface PaymentLeg {
+  amount: number;
+  method: PaymentMethod;
+}
 
 export interface Bill {
   _id: string;
@@ -113,6 +120,7 @@ export interface Bill {
   extraCharges: number;
   taxes: number;
   finalAmount: number;
+  amountPaid: number;
   paymentMethod?: PaymentMethod;
   paymentStatus: PaymentStatus;
 }

@@ -6,6 +6,10 @@ export const updateSettingsSchema = z.object({
   currency: z.enum(['INR', 'AED']).optional(),
   address: z.string().optional(),
   supportPhone: z.string().optional(),
+  email: z.string().optional(),
+  taxId: z.string().optional(),
   homePickupCharge: z.number().min(0).optional(),
   homeDeliveryCharge: z.number().min(0).optional(),
+  latestApkUrl: z.union([z.string().url(), z.literal('')]).optional(),
+  latestApkVersion: z.string().optional(),
 });

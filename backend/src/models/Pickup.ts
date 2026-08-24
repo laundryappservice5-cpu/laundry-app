@@ -3,7 +3,7 @@ import { Schema, model, Types } from 'mongoose';
 export type PickupStatus = 'CREATED' | 'DRIVER_ASSIGNED' | 'ACCEPTED' | 'PICKED_UP' | 'CANCELLED';
 
 export interface ICollectedItem {
-  clothType: Types.ObjectId;
+  clothType?: Types.ObjectId | null;
   service: Types.ObjectId;
   quantity: number;
 }
@@ -63,7 +63,7 @@ const pickupSchema = new Schema<IPickup>(
     },
     collectedItems: [
       {
-        clothType: { type: Schema.Types.ObjectId, ref: 'ClothType', required: true },
+        clothType: { type: Schema.Types.ObjectId, ref: 'ClothType' },
         service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
         quantity: { type: Number, required: true, min: 1 },
       },

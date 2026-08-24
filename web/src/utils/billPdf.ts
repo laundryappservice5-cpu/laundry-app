@@ -1,4 +1,4 @@
-import { jsPDF } from 'jspdf';
+import { jsPDF, GState } from 'jspdf';
 import type { Bill, Order } from '../types';
 import type { Settings } from '../api/settingsApi';
 import { formatDateTime, getName } from './formatters';
@@ -9,6 +9,30 @@ import { getCurrency } from './currencyStore';
 // "CODE 123.45" format instead of the Intl-formatted symbol.
 function pdfCurrency(amount: number): string {
   return `${getCurrency()} ${amount.toFixed(2)}`;
+}
+
+function drawPaymentWatermark(doc: jsPDF, bill: Bill) {
+  const label = bill.paymentStatus === 'PAID' ? 'PAID' : bill.paymentStatus === 'PARTIAL' ? 'PARTIALLY PAID' : 'UNPAID';
+  const [r, g, b] = bill.paymentStatus === 'PAID' ? [22, 130, 60] : [200, 30, 30];
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  doc.saveGraphicsState();
+  doc.setGState(new GState({ opacity: 0.14 }));
+  doc.setTextColor(r, g, b);
+  doc.setFont('helvetica', 'bold');
+
+  let fontSize = 64;
+  doc.setFontSize(fontSize);
+  const maxWidth = pageWidth * 0.85;
+  while (fontSize > 20 && doc.getTextWidth(label) > maxWidth) {
+    fontSize -= 4;
+    doc.setFontSize(fontSize);
+  }
+
+  doc.text(label, pageWidth / 2, pageHeight / 2, { align: 'center', angle: 35 });
+  doc.restoreGraphicsState();
 }
 
 export function buildBillPdf(bill: Bill, order: Order, settings?: Settings): jsPDF {
@@ -64,8 +88,8 @@ export function buildBillPdf(bill: Bill, order: Order, settings?: Settings): jsP
 
   doc.setFont('helvetica', 'normal');
   for (const line of bill.lineItems) {
-    doc.text(getName(line.clothType), colX.item, y);
-    doc.text(getName(line.service), colX.service, y);
+    doc.text(line.clothType ? getName(line.clothType) : getName(line.service), colX.item, y);
+    doc.text(line.clothType ? getName(line.service) : 'Flat fee', colX.service, y);
     doc.text(String(line.quantity), colX.qty, y, { align: 'right' });
     doc.text(pdfCurrency(line.unitPrice), colX.price, y, { align: 'right' });
     doc.text(pdfCurrency(line.lineTotal), colX.total, y, { align: 'right' });
@@ -99,8 +123,14 @@ export function buildBillPdf(bill: Bill, order: Order, settings?: Settings): jsP
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   const paymentLine =
-    bill.paymentStatus === 'PAID' ? `Paid via ${bill.paymentMethod ?? 'N/A'}` : 'Payment Pending';
+    bill.paymentStatus === 'PAID'
+      ? `Paid via ${bill.paymentMethod ?? 'N/A'}`
+      : bill.paymentStatus === 'PARTIAL'
+        ? `Partially Paid via ${bill.paymentMethod ?? 'N/A'} — Balance Due ${pdfCurrency(bill.finalAmount - bill.amountPaid)}`
+        : 'Payment Pending';
   doc.text(`Payment Status: ${paymentLine}`, marginX, y);
+
+  drawPaymentWatermark(doc, bill);
 
   return doc;
 }

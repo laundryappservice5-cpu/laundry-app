@@ -13,6 +13,7 @@
     "start": "node dist/server.js",
     "seed:root-admin": "tsx src/scripts/seedRootAdmin.ts",
     "seed:defaults": "tsx src/scripts/seedDefaults.ts",
+    "seed:royal-fresh-pricing": "tsx src/scripts/seedRoyalFreshPricing.ts",
     "test": "jest --runInBand",
     "lint": "eslint src --ext .ts"
   },

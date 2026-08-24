@@ -31,7 +31,7 @@ export function PickupDetailScreen() {
   const { data: clothTypes = [] } = useListClothTypesQuery();
   const { data: services = [] } = useListServicesQuery();
 
-  const [items, setItems] = useState<{ clothType: string; service: string; quantity: number }[]>([]);
+  const [items, setItems] = useState<{ clothType?: string; service: string; quantity: number }[]>([]);
   const [images, setImages] = useState<string[]>([]);
   const [pickupRemarks, setPickupRemarks] = useState('');
   const [damagedItemNotes, setDamagedItemNotes] = useState('');
@@ -202,8 +202,18 @@ export function PickupDetailScreen() {
       >
         <View style={styles.confirmItemList}>
           {items.map((item, idx) => {
-            const clothType = clothTypes.find((c) => c._id === item.clothType);
             const service = services.find((s) => s._id === item.service);
+            if (!item.clothType) {
+              return (
+                <View key={idx} style={styles.confirmItemRow}>
+                  <Text style={styles.confirmItemText}>{service?.name ?? 'Item'} (flat fee)</Text>
+                  {service?.flatPrice !== undefined && (
+                    <Text style={styles.confirmItemPrice}>{formatCurrency(service.flatPrice)}</Text>
+                  )}
+                </View>
+              );
+            }
+            const clothType = clothTypes.find((c) => c._id === item.clothType);
             const price = clothType?.prices?.[item.service];
             return (
               <View key={idx} style={styles.confirmItemRow}>

@@ -1,12 +1,49 @@
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { z } from 'zod';
-import { Alert, Button, Card, CardContent, Divider, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Divider, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useChangePasswordMutation, useCreateAdminMutation } from '../api/authApi';
 import { useGetSettingsQuery, useUpdateSettingsMutation } from '../api/settingsApi';
 import { useAppSelector } from '../app/hooks';
 import { setCurrency, type Currency } from '../utils/currencyStore';
+
+function PasswordField({
+  label,
+  registration,
+  error,
+  helperText,
+}: {
+  label: string;
+  registration: UseFormRegisterReturn;
+  error?: boolean;
+  helperText?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <TextField
+      label={label}
+      type={show ? 'text' : 'password'}
+      fullWidth
+      {...registration}
+      error={error}
+      helperText={helperText}
+      slotProps={{
+        input: {
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton onClick={() => setShow((prev) => !prev)} edge="end" tabIndex={-1}>
+                {show ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+              </IconButton>
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  );
+}
 
 const passwordSchema = z
   .object({
@@ -46,10 +83,36 @@ export function ProfilePage() {
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [chargesInitialized, setChargesInitialized] = useState(false);
 
+  const [businessInfo, setBusinessInfo] = useState({ businessName: '', address: '', supportPhone: '', email: '', taxId: '' });
+  const [businessInfoInitialized, setBusinessInfoInitialized] = useState(false);
+
+  const [appInfo, setAppInfo] = useState({ latestApkUrl: '', latestApkVersion: '' });
+  const [appInfoInitialized, setAppInfoInitialized] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
   if (settings && !chargesInitialized) {
     setPickupCharge(String(settings.homePickupCharge ?? 0));
     setDeliveryCharge(String(settings.homeDeliveryCharge ?? 0));
     setChargesInitialized(true);
+  }
+
+  if (settings && !businessInfoInitialized) {
+    setBusinessInfo({
+      businessName: settings.businessName ?? '',
+      address: settings.address ?? '',
+      supportPhone: settings.supportPhone ?? '',
+      email: settings.email ?? '',
+      taxId: settings.taxId ?? '',
+    });
+    setBusinessInfoInitialized(true);
+  }
+
+  if (settings && !appInfoInitialized) {
+    setAppInfo({
+      latestApkUrl: settings.latestApkUrl ?? '',
+      latestApkVersion: settings.latestApkVersion ?? '',
+    });
+    setAppInfoInitialized(true);
   }
 
   async function handleCurrencyChange(currency: Currency) {
@@ -62,6 +125,20 @@ export function ProfilePage() {
       homePickupCharge: Number(pickupCharge || 0),
       homeDeliveryCharge: Number(deliveryCharge || 0),
     }).unwrap();
+  }
+
+  async function handleSaveBusinessInfo() {
+    await updateSettings(businessInfo).unwrap();
+  }
+
+  async function handleSaveAppInfo() {
+    await updateSettings(appInfo).unwrap();
+  }
+
+  async function handleCopyDownloadLink() {
+    await navigator.clipboard.writeText(`${window.location.origin}/download-app`);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   }
 
   async function onChangePassword(values: PasswordForm) {
@@ -98,6 +175,53 @@ export function ProfilePage() {
             Business Settings
           </Typography>
           {settingsSaved && <Alert severity="success" sx={{ mb: 2 }}>Settings updated.</Alert>}
+
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
+            Receipt Details
+          </Typography>
+          <Stack spacing={2}>
+            <TextField
+              label="Business Name"
+              fullWidth
+              value={businessInfo.businessName}
+              onChange={(e) => setBusinessInfo({ ...businessInfo, businessName: e.target.value })}
+            />
+            <TextField
+              label="Address"
+              fullWidth
+              multiline
+              minRows={2}
+              value={businessInfo.address}
+              onChange={(e) => setBusinessInfo({ ...businessInfo, address: e.target.value })}
+            />
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Contact Phone"
+                fullWidth
+                value={businessInfo.supportPhone}
+                onChange={(e) => setBusinessInfo({ ...businessInfo, supportPhone: e.target.value })}
+              />
+              <TextField
+                label="Email"
+                fullWidth
+                value={businessInfo.email}
+                onChange={(e) => setBusinessInfo({ ...businessInfo, email: e.target.value })}
+              />
+            </Stack>
+            <TextField
+              label="Tax ID (GSTIN / TRN)"
+              fullWidth
+              value={businessInfo.taxId}
+              onChange={(e) => setBusinessInfo({ ...businessInfo, taxId: e.target.value })}
+              helperText="Printed on receipts. Leave blank to hide."
+            />
+            <Button variant="outlined" sx={{ alignSelf: 'flex-start' }} disabled={isSavingSettings} onClick={handleSaveBusinessInfo}>
+              {isSavingSettings ? 'Saving…' : 'Save Receipt Details'}
+            </Button>
+          </Stack>
+
+          <Divider sx={{ my: 3 }} />
+
           <TextField
             select
             fullWidth
@@ -138,31 +262,61 @@ export function ProfilePage() {
       <Card>
         <CardContent>
           <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+            Mobile App
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Paste a link to the latest driver app build (e.g. a GitHub Release or Google Drive share link). Drivers can open the
+            download page below to install it — no admin login needed.
+          </Typography>
+          <Stack spacing={2}>
+            <TextField
+              label="APK Download Link"
+              fullWidth
+              value={appInfo.latestApkUrl}
+              onChange={(e) => setAppInfo({ ...appInfo, latestApkUrl: e.target.value })}
+              placeholder="https://github.com/your-org/app/releases/latest/download/app.apk"
+            />
+            <TextField
+              label="Version"
+              fullWidth
+              value={appInfo.latestApkVersion}
+              onChange={(e) => setAppInfo({ ...appInfo, latestApkVersion: e.target.value })}
+              placeholder="1.4.2"
+            />
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+              <Button variant="outlined" disabled={isSavingSettings} onClick={handleSaveAppInfo}>
+                {isSavingSettings ? 'Saving…' : 'Save App Link'}
+              </Button>
+              <Button variant="text" onClick={handleCopyDownloadLink}>
+                {linkCopied ? 'Copied!' : 'Copy Driver Download Link'}
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Typography variant="subtitle1" fontWeight={700} gutterBottom>
             Change Password
           </Typography>
           <form onSubmit={passwordForm.handleSubmit(onChangePassword)}>
             <Stack spacing={2}>
               {passwordError && <Alert severity="error">Could not change password — check your current password.</Alert>}
               {passwordSuccess && <Alert severity="success">Password changed successfully.</Alert>}
-              <TextField
+              <PasswordField
                 label="Current Password"
-                type="password"
-                fullWidth
-                {...passwordForm.register('currentPassword')}
+                registration={passwordForm.register('currentPassword')}
                 error={Boolean(passwordForm.formState.errors.currentPassword)}
               />
-              <TextField
+              <PasswordField
                 label="New Password"
-                type="password"
-                fullWidth
-                {...passwordForm.register('newPassword')}
+                registration={passwordForm.register('newPassword')}
                 error={Boolean(passwordForm.formState.errors.newPassword)}
               />
-              <TextField
+              <PasswordField
                 label="Confirm New Password"
-                type="password"
-                fullWidth
-                {...passwordForm.register('confirmNewPassword')}
+                registration={passwordForm.register('confirmNewPassword')}
                 error={Boolean(passwordForm.formState.errors.confirmNewPassword)}
                 helperText={passwordForm.formState.errors.confirmNewPassword?.message}
               />
@@ -205,20 +359,16 @@ export function ProfilePage() {
                   />
                 </Grid>
                 <Grid size={6}>
-                  <TextField
+                  <PasswordField
                     label="Password"
-                    type="password"
-                    fullWidth
-                    {...adminForm.register('password')}
+                    registration={adminForm.register('password')}
                     error={Boolean(adminForm.formState.errors.password)}
                   />
                 </Grid>
                 <Grid size={6}>
-                  <TextField
+                  <PasswordField
                     label="Confirm Password"
-                    type="password"
-                    fullWidth
-                    {...adminForm.register('confirmPassword')}
+                    registration={adminForm.register('confirmPassword')}
                     error={Boolean(adminForm.formState.errors.confirmPassword)}
                     helperText={adminForm.formState.errors.confirmPassword?.message}
                   />

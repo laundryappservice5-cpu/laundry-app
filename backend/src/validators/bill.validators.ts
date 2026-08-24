@@ -20,6 +20,12 @@ export const applyDiscountSchema = z.object({
 });
 
 export const recordPaymentSchema = z.object({
-  amount: z.number().positive(),
-  method: z.enum(['CASH', 'UPI', 'CARD']),
+  splits: z
+    .array(
+      z.object({
+        amount: z.number().positive(),
+        method: z.enum(['CASH', 'UPI', 'CARD']),
+      }),
+    )
+    .min(1),
 });
