@@ -5,6 +5,7 @@ import { useCreateWalkInOrderMutation } from '../../api/orderApi';
 import { CustomerAutocomplete } from '../../components/CustomerAutocomplete';
 import { CollectedItemsEditor } from '../../components/CollectedItemsEditor';
 import { CustomerCreateDialog } from '../customers/CustomerCreateDialog';
+import { DRIVER_LOGISTICS_ENABLED } from '../../utils/featureFlags';
 import type { Customer } from '../../types';
 
 export function WalkInOrderCreatePage() {
@@ -15,7 +16,7 @@ export function WalkInOrderCreatePage() {
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [items, setItems] = useState<{ clothType?: string; service: string; quantity: number }[]>([]);
   const [isExpressDelivery, setIsExpressDelivery] = useState(false);
-  const [isInStoreDelivery, setIsInStoreDelivery] = useState(false);
+  const [isInStoreDelivery, setIsInStoreDelivery] = useState(true);
   const [notes, setNotes] = useState('');
 
   async function handleSubmit() {
@@ -24,7 +25,7 @@ export function WalkInOrderCreatePage() {
       customer: customer._id,
       items,
       isExpressDelivery,
-      isInStoreDelivery,
+      isInStoreDelivery: DRIVER_LOGISTICS_ENABLED ? isInStoreDelivery : true,
       notes: notes || undefined,
     }).unwrap();
     navigate(`/orders/${order._id}`);
@@ -70,10 +71,12 @@ export function WalkInOrderCreatePage() {
                 control={<Switch checked={isExpressDelivery} onChange={(e) => setIsExpressDelivery(e.target.checked)} />}
                 label="Express Delivery"
               />
-              <FormControlLabel
-                control={<Switch checked={isInStoreDelivery} onChange={(e) => setIsInStoreDelivery(e.target.checked)} />}
-                label="Customer will collect in-store"
-              />
+              {DRIVER_LOGISTICS_ENABLED && (
+                <FormControlLabel
+                  control={<Switch checked={isInStoreDelivery} onChange={(e) => setIsInStoreDelivery(e.target.checked)} />}
+                  label="Customer will collect in-store"
+                />
+              )}
             </Stack>
             <TextField label="Notes" multiline minRows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Stack>

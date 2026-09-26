@@ -6,9 +6,11 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   CircularProgress,
   Divider,
+  FormControlLabel,
   Grid,
   MenuItem,
   Skeleton,
@@ -34,10 +36,16 @@ import { ORDER_STAGE_LABELS, ORDER_STAGE_LIST } from '../../utils/constants';
 import { formatCurrency, getId, getName } from '../../utils/formatters';
 import { printThermalReceipt } from '../../utils/thermalReceipt';
 import { useGetSettingsQuery } from '../../api/settingsApi';
+import { DRIVER_LOGISTICS_ENABLED } from '../../utils/featureFlags';
 import { DiscountDialog } from './DiscountDialog';
 import { RecordPaymentDialog } from './RecordPaymentDialog';
 import { AdvanceStageDialog } from './AdvanceStageDialog';
-import type { Bill } from '../../types';
+import type { Bill, OrderStage } from '../../types';
+
+const SIMPLE_PROGRESS_STAGES: { stage: OrderStage; label: string }[] = [
+  { stage: 'READY_FOR_DELIVERY', label: 'Washing Done' },
+  { stage: 'DELIVERED', label: 'Delivered' },
+];
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -81,9 +89,14 @@ export function OrderDetailPage() {
   }
 
   const currentIndex = ORDER_STAGE_LIST.indexOf(order.currentStatus);
-  let nextStage = ORDER_STAGE_LIST[currentIndex + 1];
-  if (order.isInStoreDelivery && nextStage === 'OUT_FOR_DELIVERY') {
-    nextStage = 'DELIVERED';
+  let nextStage: typeof order.currentStatus | undefined;
+  if (DRIVER_LOGISTICS_ENABLED) {
+    nextStage = ORDER_STAGE_LIST[currentIndex + 1];
+    if (order.isInStoreDelivery && nextStage === 'OUT_FOR_DELIVERY') {
+      nextStage = 'DELIVERED';
+    }
+  } else {
+    nextStage = SIMPLE_PROGRESS_STAGES.map((s) => s.stage).find((stage) => ORDER_STAGE_LIST.indexOf(stage) > currentIndex);
   }
   const canGenerateBill = currentIndex >= ORDER_STAGE_LIST.indexOf('READY_FOR_DELIVERY');
   const driverId = getId(order.driver);
@@ -108,17 +121,48 @@ export function OrderDetailPage() {
 
           <Card>
             <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  Processing Pipeline
-                </Typography>
-                {nextStage && (
-                  <Button variant="contained" size="small" onClick={() => setAdvanceConfirmOpen(true)}>
-                    Advance to {ORDER_STAGE_LABELS[nextStage]}
-                  </Button>
-                )}
-              </Stack>
-              <OrderStageTimeline orderId={order._id} currentStatus={order.currentStatus} statusHistory={order.statusHistory} />
+              {DRIVER_LOGISTICS_ENABLED ? (
+                <>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      Processing Pipeline
+                    </Typography>
+                    {nextStage && (
+                      <Button variant="contained" size="small" onClick={() => setAdvanceConfirmOpen(true)}>
+                        Advance to {ORDER_STAGE_LABELS[nextStage]}
+                      </Button>
+                    )}
+                  </Stack>
+                  <OrderStageTimeline orderId={order._id} currentStatus={order.currentStatus} statusHistory={order.statusHistory} />
+                </>
+              ) : (
+                <>
+                  <Typography variant="subtitle1" fontWeight={700} mb={1}>
+                    Order Progress
+                  </Typography>
+                  <Stack>
+                    {SIMPLE_PROGRESS_STAGES.map(({ stage, label }) => {
+                      const stageIndex = ORDER_STAGE_LIST.indexOf(stage);
+                      const done = currentIndex >= stageIndex;
+                      const isNext = stage === nextStage;
+                      return (
+                        <FormControlLabel
+                          key={stage}
+                          control={
+                            <Checkbox
+                              checked={done}
+                              disabled={!isNext}
+                              onChange={() => isNext && setAdvanceConfirmOpen(true)}
+                            />
+                          }
+                          label={label}
+                          sx={{ opacity: done || isNext ? 1 : 0.5 }}
+                        />
+                      );
+                    })}
+                  </Stack>
+                </>
+              )}
             </CardContent>
           </Card>
         </Stack>
@@ -126,34 +170,36 @@ export function OrderDetailPage() {
 
       <Grid size={{ xs: 12, md: 5 }}>
         <Stack spacing={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                Delivery Driver
-              </Typography>
-              {order.isInStoreDelivery ? (
-                <Alert severity="info">Customer will collect this order in-store — no delivery driver needed.</Alert>
-              ) : (
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="Assigned Driver"
-                  value={driverId ?? ''}
-                  onChange={(e) => setPendingDriverId(e.target.value)}
-                >
-                  <MenuItem value="" disabled>
-                    Select a driver
-                  </MenuItem>
-                  {drivers.map((d) => (
-                    <MenuItem key={d.id} value={d.id}>
-                      {d.name} {d.vehicleNumber ? `(${d.vehicleNumber})` : ''}
+          {DRIVER_LOGISTICS_ENABLED && (
+            <Card>
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                  Delivery Driver
+                </Typography>
+                {order.isInStoreDelivery ? (
+                  <Alert severity="info">Customer will collect this order in-store — no delivery driver needed.</Alert>
+                ) : (
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    label="Assigned Driver"
+                    value={driverId ?? ''}
+                    onChange={(e) => setPendingDriverId(e.target.value)}
+                  >
+                    <MenuItem value="" disabled>
+                      Select a driver
                     </MenuItem>
-                  ))}
-                </TextField>
-              )}
-            </CardContent>
-          </Card>
+                    {drivers.map((d) => (
+                      <MenuItem key={d.id} value={d.id}>
+                        {d.name} {d.vehicleNumber ? `(${d.vehicleNumber})` : ''}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
         <Card>
           <CardContent>
@@ -174,80 +220,104 @@ export function OrderDetailPage() {
             )}
 
             {bill && (
-              <Stack spacing={1.5}>
-                <Typography variant="body2" color="text.secondary">
-                  Invoice {bill.invoiceNumber}
-                </Typography>
+              <Stack spacing={2}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2" color="text.secondary">
+                    Invoice {bill.invoiceNumber}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={
+                      bill.paymentStatus === 'PAID'
+                        ? `Paid via ${bill.paymentMethod}`
+                        : bill.paymentStatus === 'PARTIAL'
+                          ? `Partially Paid — ${formatCurrency(bill.finalAmount - bill.amountPaid)} due`
+                          : 'Payment Pending'
+                    }
+                    color={bill.paymentStatus === 'PAID' ? 'success' : bill.paymentStatus === 'PARTIAL' ? 'info' : 'warning'}
+                  />
+                </Stack>
                 <Divider />
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography variant="body2">Subtotal</Typography>
-                  <Typography variant="body2">{formatCurrency(bill.subtotal)}</Typography>
-                </Stack>
-                {bill.pickupCharge > 0 && (
+                <Stack spacing={1}>
                   <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2">Pickup Charge</Typography>
-                    <Typography variant="body2">{formatCurrency(bill.pickupCharge)}</Typography>
-                  </Stack>
-                )}
-                {bill.deliveryCharge > 0 && (
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2">Delivery Charge</Typography>
-                    <Typography variant="body2">{formatCurrency(bill.deliveryCharge)}</Typography>
-                  </Stack>
-                )}
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography variant="body2">Extra Charges</Typography>
-                  <Typography variant="body2">{formatCurrency(bill.extraCharges)}</Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography variant="body2">Taxes</Typography>
-                  <Typography variant="body2">{formatCurrency(bill.taxes)}</Typography>
-                </Stack>
-                {bill.discount && (
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="success.main">
-                      Discount ({bill.discount.reason})
+                    <Typography variant="body2" color="text.secondary">
+                      Subtotal
                     </Typography>
-                    <Typography variant="body2" color="success.main">
-                      −{formatCurrency(bill.discount.discountAmount)}
-                    </Typography>
+                    <Typography variant="body2">{formatCurrency(bill.subtotal)}</Typography>
                   </Stack>
-                )}
+                  {bill.pickupCharge > 0 && (
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">
+                        Pickup Charge
+                      </Typography>
+                      <Typography variant="body2">{formatCurrency(bill.pickupCharge)}</Typography>
+                    </Stack>
+                  )}
+                  {bill.deliveryCharge > 0 && (
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">
+                        Delivery Charge
+                      </Typography>
+                      <Typography variant="body2">{formatCurrency(bill.deliveryCharge)}</Typography>
+                    </Stack>
+                  )}
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">
+                      Extra Charges
+                    </Typography>
+                    <Typography variant="body2">{formatCurrency(bill.extraCharges)}</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">
+                      Taxes
+                    </Typography>
+                    <Typography variant="body2">{formatCurrency(bill.taxes)}</Typography>
+                  </Stack>
+                  {bill.discount && (
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="body2" color="success.main">
+                        Discount ({bill.discount.reason})
+                      </Typography>
+                      <Typography variant="body2" color="success.main">
+                        −{formatCurrency(bill.discount.discountAmount)}
+                      </Typography>
+                    </Stack>
+                  )}
+                </Stack>
                 <Divider />
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography fontWeight={700}>Final Amount</Typography>
-                  <Typography fontWeight={700}>{formatCurrency(bill.finalAmount)}</Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    Final Amount
+                  </Typography>
+                  <Typography variant="h6" fontWeight={800} color="primary.main">
+                    {formatCurrency(bill.finalAmount)}
+                  </Typography>
                 </Stack>
-                <Chip
-                  label={
-                    bill.paymentStatus === 'PAID'
-                      ? `Paid via ${bill.paymentMethod}`
-                      : bill.paymentStatus === 'PARTIAL'
-                        ? `Partially Paid — ${formatCurrency(bill.finalAmount - bill.amountPaid)} due`
-                        : 'Payment Pending'
-                  }
-                  color={bill.paymentStatus === 'PAID' ? 'success' : bill.paymentStatus === 'PARTIAL' ? 'info' : 'warning'}
-                  sx={{ alignSelf: 'flex-start' }}
-                />
 
-                <Stack direction="row" spacing={1} mt={1} flexWrap="wrap">
-                  <Button variant="outlined" onClick={() => setPdfBill(bill)}>
-                    View Invoice
-                  </Button>
-                  <Button variant="outlined" onClick={() => printThermalReceipt(bill, order, settings)}>
-                    Print Receipt
-                  </Button>
+                <Grid container spacing={1.5}>
+                  <Grid size={6}>
+                    <Button fullWidth variant="outlined" onClick={() => setPdfBill(bill)}>
+                      View Invoice
+                    </Button>
+                  </Grid>
+                  <Grid size={6}>
+                    <Button fullWidth variant="outlined" onClick={() => printThermalReceipt(bill, order, settings)}>
+                      Print Receipt
+                    </Button>
+                  </Grid>
                   {bill.paymentStatus === 'PENDING' && (
-                    <Button variant="outlined" onClick={() => setDiscountOpen(true)}>
-                      Apply Discount
-                    </Button>
+                    <Grid size={6}>
+                      <Button fullWidth variant="outlined" onClick={() => setDiscountOpen(true)}>
+                        Apply Discount
+                      </Button>
+                    </Grid>
                   )}
-                  {bill.paymentStatus !== 'PAID' && (
-                    <Button variant="contained" onClick={() => setPaymentOpen(true)}>
-                      {bill.paymentStatus === 'PARTIAL' ? 'Collect Balance' : 'Record Payment'}
-                    </Button>
-                  )}
-                </Stack>
+                </Grid>
+                {bill.paymentStatus !== 'PAID' && (
+                  <Button fullWidth variant="contained" size="large" onClick={() => setPaymentOpen(true)}>
+                    {bill.paymentStatus === 'PARTIAL' ? 'Collect Balance' : 'Record Payment'}
+                  </Button>
+                )}
               </Stack>
             )}
           </CardContent>

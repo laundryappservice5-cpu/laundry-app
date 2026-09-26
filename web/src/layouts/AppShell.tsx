@@ -39,18 +39,19 @@ import { NotificationsMenu } from '../components/NotificationsMenu';
 import { FadeInOnMount } from '../components/FadeInOnMount';
 import { useGetSettingsQuery } from '../api/settingsApi';
 import { setCurrency } from '../utils/currencyStore';
+import { DRIVER_LOGISTICS_ENABLED } from '../utils/featureFlags';
 
 const DRAWER_WIDTH = 248;
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { label: 'Customers', icon: <PeopleIcon />, path: '/customers' },
-  { label: 'Pickups', icon: <Inventory2Icon />, path: '/pickups' },
+  { label: 'Pickups', icon: <Inventory2Icon />, path: '/pickups', driverFeature: true },
   { label: 'Orders', icon: <LocalShippingIcon />, path: '/orders' },
-  { label: 'Drivers', icon: <BadgeIcon />, path: '/drivers' },
+  { label: 'Drivers', icon: <BadgeIcon />, path: '/drivers', driverFeature: true },
   { label: 'Services', icon: <LocalOfferIcon />, path: '/services' },
   { label: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
-];
+].filter((item) => !item.driverFeature || DRIVER_LOGISTICS_ENABLED);
 
 export function AppShell() {
   const dispatch = useAppDispatch();
@@ -105,15 +106,17 @@ export function AppShell() {
           <Toolbar sx={{ gap: 2 }}>
             <GlobalSearchBar />
             <Stack direction="row" spacing={1}>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<AddCircleOutlineIcon />}
-                onClick={() => navigate('/pickups/new')}
-                sx={{ whiteSpace: 'nowrap' }}
-              >
-                New Pickup
-              </Button>
+              {DRIVER_LOGISTICS_ENABLED && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<AddCircleOutlineIcon />}
+                  onClick={() => navigate('/pickups/new')}
+                  sx={{ whiteSpace: 'nowrap' }}
+                >
+                  New Pickup
+                </Button>
+              )}
               <Button
                 variant="outlined"
                 size="small"

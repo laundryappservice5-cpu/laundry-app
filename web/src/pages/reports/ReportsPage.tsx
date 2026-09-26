@@ -13,16 +13,25 @@ import { DataTable, type DataTableColumn } from '../../components/DataTable';
 import { OrderStageChip } from '../../components/StatusChip';
 import { formatCurrency, formatDateTime, getId, getName } from '../../utils/formatters';
 import { useClientPagination } from '../../hooks/useClientPagination';
+import { DRIVER_LOGISTICS_ENABLED } from '../../utils/featureFlags';
 import type { Bill, Order, PaymentReportRow } from '../../types';
 
-const TABS = ['Driver Performance', 'Admin Performance', 'Discounts', 'Payments', 'Repeat Customers', 'Express Orders'];
+const ALL_TABS = [
+  { label: 'Driver Performance', slug: 'driver-performance', driverFeature: true, Component: DriverPerformanceTab },
+  { label: 'Admin Performance', slug: 'admin-performance', Component: AdminPerformanceTab },
+  { label: 'Discounts', slug: 'discounts', Component: DiscountsTab },
+  { label: 'Payments', slug: 'payments', Component: PaymentsTab },
+  { label: 'Repeat Customers', slug: 'repeat-customers', Component: RepeatCustomersTab },
+  { label: 'Express Orders', slug: 'express-orders', Component: ExpressOrdersTab },
+];
 
-const TAB_SLUGS = ['driver-performance', 'admin-performance', 'discounts', 'payments', 'repeat-customers', 'express-orders'];
+const TABS = ALL_TABS.filter((t) => !t.driverFeature || DRIVER_LOGISTICS_ENABLED);
 
 export function ReportsPage() {
   const [searchParams] = useSearchParams();
-  const initialTab = Math.max(0, TAB_SLUGS.indexOf(searchParams.get('tab') ?? ''));
+  const initialTab = Math.max(0, TABS.findIndex((t) => t.slug === searchParams.get('tab')));
   const [tab, setTab] = useState(initialTab);
+  const ActiveTab = TABS[tab]?.Component;
 
   return (
     <Stack spacing={3}>
@@ -31,18 +40,11 @@ export function ReportsPage() {
       </Typography>
       <Card>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
-          {TABS.map((label) => (
-            <Tab key={label} label={label} />
+          {TABS.map((t) => (
+            <Tab key={t.slug} label={t.label} />
           ))}
         </Tabs>
-        <CardContent>
-          {tab === 0 && <DriverPerformanceTab />}
-          {tab === 1 && <AdminPerformanceTab />}
-          {tab === 2 && <DiscountsTab />}
-          {tab === 3 && <PaymentsTab />}
-          {tab === 4 && <RepeatCustomersTab />}
-          {tab === 5 && <ExpressOrdersTab />}
-        </CardContent>
+        <CardContent>{ActiveTab && <ActiveTab />}</CardContent>
       </Card>
     </Stack>
   );

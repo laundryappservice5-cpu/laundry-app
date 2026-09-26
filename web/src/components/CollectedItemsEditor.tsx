@@ -22,6 +22,7 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import CloseIcon from '@mui/icons-material/Close';
 import { useCreateClothTypeMutation, useListClothTypesQuery, useListServicesQuery } from '../api/catalogApi';
 import { getClothTypeIcon } from '../utils/clothTypeIcons';
+import { ConfirmDialog } from './ConfirmDialog';
 import type { ClothType, CollectedItem, Service } from '../types';
 import { getId, formatCurrency } from '../utils/formatters';
 
@@ -88,6 +89,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
   const [newTypeName, setNewTypeName] = useState('');
   const [dirty, setDirty] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [removeKey, setRemoveKey] = useState<string | null>(null);
 
   const filteredTypes = useMemo(
     () => clothTypes.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
@@ -102,8 +104,6 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
     if (!entry.clothType) return entry.service.flatPrice ?? 0;
     return (priceFor(entry.clothType, entry.service._id) ?? 0) * entry.quantity;
   }
-
-  const hasFlatEntry = useMemo(() => [...cart.values()].some((e) => !e.clothType), [cart]);
 
   const totalQty = useMemo(() => [...cart.values()].reduce((sum, e) => sum + e.quantity, 0), [cart]);
   const totalAmount = useMemo(() => [...cart.values()].reduce((sum, e) => sum + lineTotal(e), 0), [cart]);
@@ -134,9 +134,13 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
   }
 
   function addFlatFeeToCart(service: Service) {
-    // A flat-fee service (e.g. House Cleaning) is a standalone, one-direct-charge
-    // service — it replaces everything else in the cart rather than adding to it.
-    setCart(new Map([[flatKey(service._id), { clothType: null, service, quantity: 1 }]]));
+    // A flat-fee service (e.g. House Cleaning) is an addon — it adds its own flat
+    // charge alongside whatever itemized entries are already in the cart.
+    setCart((prev) => {
+      const next = new Map(prev);
+      next.set(flatKey(service._id), { clothType: null, service, quantity: 1 });
+      return next;
+    });
     setDirty(true);
   }
 
@@ -187,6 +191,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
 
   const activeServiceDoc = services.find((s) => s._id === activeService);
   const isFlatFeeActive = activeServiceDoc?.flatPrice != null;
+  const removeEntry = removeKey ? cart.get(removeKey) : undefined;
 
   return (
     <Grid container spacing={2}>
@@ -226,13 +231,13 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
                         <Typography fontWeight={600} sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
                           {entry.service.name}
                         </Typography>
-                        <IconButton size="small" onClick={() => removeFromCart(key)}>
+                        <IconButton size="small" onClick={() => setRemoveKey(key)}>
                           <CloseIcon fontSize="small" />
                         </IconButton>
                       </Stack>
                       <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
                         <Typography variant="caption" color="text.secondary">
-                          Flat fee — direct service
+                          Add-on — flat fee
                         </Typography>
                         <Typography fontWeight={700} color="primary.main">
                           {formatCurrency(lineTotal(entry))}
@@ -259,7 +264,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
                       <Typography fontWeight={600} sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
                         {entry.clothType.name}
                       </Typography>
-                      <IconButton size="small" onClick={() => removeFromCart(key)}>
+                      <IconButton size="small" onClick={() => setRemoveKey(key)}>
                         <CloseIcon fontSize="small" />
                       </IconButton>
                     </Stack>
@@ -333,20 +338,16 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
           >
             {services.map((svc) => {
               const isFlat = svc.flatPrice != null;
-              // House Cleaning stays clickable no matter what's already in the cart — picking it is
-              // what clears everything else. Only itemized tabs get locked out once it's in the cart.
-              const disabled = !isFlat && hasFlatEntry;
               return (
                 <Tab
                   key={svc._id}
                   label={isFlat ? `🏠 ${svc.name}` : svc.name}
                   value={svc._id}
-                  disabled={disabled}
                   sx={{ minHeight: 40 }}
                 />
               );
             })}
-            <Tab key={ALL_TAB} label="All" value={ALL_TAB} disabled={hasFlatEntry} sx={{ minHeight: 40 }} />
+            <Tab key={ALL_TAB} label="All" value={ALL_TAB} sx={{ minHeight: 40 }} />
           </Tabs>
 
           {isFlatFeeActive && activeServiceDoc ? (
@@ -356,8 +357,7 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
                 {activeServiceDoc.name}
               </Typography>
               <Typography variant="body2" color="text.secondary" textAlign="center">
-                A direct, one-time service — no items needed. Adding it charges one flat amount and clears any other items
-                already in the cart.
+                An addon — no items needed. Adding it charges one flat amount alongside anything else already in the cart.
               </Typography>
               <Typography variant="h5" fontWeight={800} color="primary.main">
                 {formatCurrency(activeServiceDoc.flatPrice ?? 0)}
@@ -593,6 +593,25 @@ export function CollectedItemsEditor({ items, onSave, saving, onChange, hideSave
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(removeKey)}
+        title="Remove this item?"
+        description={
+          removeEntry
+            ? removeEntry.clothType
+              ? `${removeEntry.clothType.name} · ${removeEntry.service.name} × ${removeEntry.quantity} will be removed from the list.`
+              : `${removeEntry.service.name} will be removed from the list.`
+            : undefined
+        }
+        confirmLabel="Remove"
+        confirmColor="error"
+        onConfirm={() => {
+          if (removeKey) removeFromCart(removeKey);
+          setRemoveKey(null);
+        }}
+        onClose={() => setRemoveKey(null)}
+      />
     </Grid>
   );
 }

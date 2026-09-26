@@ -16,6 +16,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { useDebounce } from '../hooks/useDebounce';
 import { useLazyGlobalSearchQuery } from '../api/searchApi';
 import { getId, getName } from '../utils/formatters';
+import { DRIVER_LOGISTICS_ENABLED } from '../utils/featureFlags';
 
 export function GlobalSearchBar() {
   const navigate = useNavigate();
@@ -31,7 +32,11 @@ export function GlobalSearchBar() {
   }, [debouncedQuery, trigger]);
 
   const hasResults =
-    data && (data.customers.length || data.pickups.length || data.orders.length || data.bills.length);
+    data &&
+    (data.customers.length ||
+      (DRIVER_LOGISTICS_ENABLED && data.pickups.length) ||
+      data.orders.length ||
+      data.bills.length);
 
   function close() {
     setAnchorEl(null);
@@ -72,11 +77,12 @@ export function GlobalSearchBar() {
                     <ListItemText primary={`${c.name} — ${c.mobileNumber}`} secondary="Customer" />
                   </ListItemButton>
                 ))}
-                {data!.pickups.map((p) => (
-                  <ListItemButton key={p._id} onClick={() => { navigate(`/pickups/${p._id}`); close(); }}>
-                    <ListItemText primary={`Pickup — ${getName(p.customer)}`} secondary={`Status: ${p.status}`} />
-                  </ListItemButton>
-                ))}
+                {DRIVER_LOGISTICS_ENABLED &&
+                  data!.pickups.map((p) => (
+                    <ListItemButton key={p._id} onClick={() => { navigate(`/pickups/${p._id}`); close(); }}>
+                      <ListItemText primary={`Pickup — ${getName(p.customer)}`} secondary={`Status: ${p.status}`} />
+                    </ListItemButton>
+                  ))}
                 {data!.orders.map((o) => (
                   <ListItemButton key={o._id} onClick={() => { navigate(`/orders/${o._id}`); close(); }}>
                     <ListItemText primary={`Order — ${getName(o.customer)}`} secondary={`Status: ${o.currentStatus}`} />

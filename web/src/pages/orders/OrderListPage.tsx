@@ -10,6 +10,7 @@ import { OrderStageChip } from '../../components/StatusChip';
 import { ExpressBadge } from '../../components/ExpressBadge';
 import { formatDateTime, getName } from '../../utils/formatters';
 import { ORDER_STAGE_LABELS, ORDER_STAGE_LIST } from '../../utils/constants';
+import { DRIVER_LOGISTICS_ENABLED } from '../../utils/featureFlags';
 import type { Order, OrderStage, PaymentStatus } from '../../types';
 import { OrderCard } from './OrderCard';
 
@@ -41,7 +42,16 @@ export function OrderListPage() {
 
   const columns: DataTableColumn<Order>[] = [
     { key: 'customer', header: 'Customer', render: (o) => getName(o.customer), sortAccessor: (o) => getName(o.customer).toLowerCase() },
-    { key: 'driver', header: 'Driver', render: (o) => getName(o.driver, 'Unassigned'), sortAccessor: (o) => getName(o.driver, 'Unassigned').toLowerCase() },
+    ...(DRIVER_LOGISTICS_ENABLED
+      ? [
+          {
+            key: 'driver',
+            header: 'Driver',
+            render: (o) => getName(o.driver, 'Unassigned'),
+            sortAccessor: (o) => getName(o.driver, 'Unassigned').toLowerCase(),
+          } satisfies DataTableColumn<Order>,
+        ]
+      : []),
     { key: 'created', header: 'Created', render: (o) => formatDateTime(o.createdAt), sortAccessor: (o) => o.createdAt },
     { key: 'status', header: 'Status', render: (o) => <OrderStageChip stage={o.currentStatus} />, sortAccessor: (o) => o.currentStatus },
     {

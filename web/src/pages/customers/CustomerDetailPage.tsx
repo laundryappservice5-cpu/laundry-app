@@ -5,6 +5,7 @@ import { DataTable, type DataTableColumn } from '../../components/DataTable';
 import { OrderStageChip } from '../../components/StatusChip';
 import { ExpressBadge } from '../../components/ExpressBadge';
 import { formatDate, formatDateTime } from '../../utils/formatters';
+import { DRIVER_LOGISTICS_ENABLED } from '../../utils/featureFlags';
 import type { Order, Pickup } from '../../types';
 
 export function CustomerDetailPage() {
@@ -39,9 +40,11 @@ export function CustomerDetailPage() {
           </Typography>
           <Typography color="text.secondary">{customer.mobileNumber}</Typography>
         </Box>
-        <Button variant="contained" onClick={() => navigate(`/pickups/new?customerId=${customer._id}`)}>
-          New Pickup
-        </Button>
+        {DRIVER_LOGISTICS_ENABLED && (
+          <Button variant="contained" onClick={() => navigate(`/pickups/new?customerId=${customer._id}`)}>
+            New Pickup
+          </Button>
+        )}
       </Stack>
 
       <Grid container spacing={2}>
@@ -81,10 +84,14 @@ export function CustomerDetailPage() {
         </Grid>
       </Grid>
 
-      <Typography variant="h6" fontWeight={700}>
-        Pickup History
-      </Typography>
-      <DataTable columns={pickupColumns} rows={pickupHistory} rowKey={(p) => p._id} onRowClick={(p) => navigate(`/pickups/${p._id}`)} />
+      {DRIVER_LOGISTICS_ENABLED && (
+        <>
+          <Typography variant="h6" fontWeight={700}>
+            Pickup History
+          </Typography>
+          <DataTable columns={pickupColumns} rows={pickupHistory} rowKey={(p) => p._id} onRowClick={(p) => navigate(`/pickups/${p._id}`)} />
+        </>
+      )}
 
       <Typography variant="h6" fontWeight={700}>
         Order History

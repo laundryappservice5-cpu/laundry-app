@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Card, CardActionArea, CardContent, Grid, Skeleton, Stack, Typography } from '@mui/material';
+import { Avatar, Box, Card, CardActionArea, CardContent, Grid, Skeleton, Stack, Typography } from '@mui/material';
 import {
   Area,
   AreaChart,
@@ -11,24 +12,64 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import LocalLaundryServiceOutlinedIcon from '@mui/icons-material/LocalLaundryServiceOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import BoltOutlinedIcon from '@mui/icons-material/BoltOutlined';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
+import PendingActionsOutlinedIcon from '@mui/icons-material/PendingActionsOutlined';
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import { useGetDashboardQuery, useGetOrderStatusChartQuery, useGetRevenueChartQuery } from '../api/reportApi';
 import { formatCurrency } from '../utils/formatters';
 import { ORDER_STAGE_LABELS } from '../utils/constants';
 import { DASHBOARD_CARD_LINKS } from '../utils/dashboardLinks';
+import { DRIVER_LOGISTICS_ENABLED } from '../utils/featureFlags';
 import type { DashboardStats, OrderStage } from '../types';
 
-const STAT_CARDS: { key: keyof DashboardStats; label: string; format?: 'currency' }[] = [
-  { key: 'todaysPickups', label: "Today's Pickups" },
-  { key: 'pendingPickups', label: 'Pending Pickups' },
-  { key: 'laundryInProgress', label: 'Laundry In Progress' },
-  { key: 'readyForDelivery', label: 'Ready for Delivery' },
-  { key: 'expressOrders', label: 'Express Orders' },
-  { key: 'deliveredOrdersToday', label: 'Delivered Today' },
-  { key: 'pendingPayments', label: 'Pending Payments' },
-  { key: 'dailyRevenue', label: 'Daily Revenue', format: 'currency' },
-  { key: 'monthlyRevenue', label: 'Monthly Revenue', format: 'currency' },
-  { key: 'customerCount', label: 'Customers' },
-  { key: 'driverCount', label: 'Active Drivers' },
+type StatCardDef = {
+  key: keyof DashboardStats;
+  label: string;
+  format?: 'currency';
+  icon: ReactNode;
+  color: 'primary' | 'secondary' | 'success' | 'warning' | 'info' | 'error';
+  driverFeature?: boolean;
+};
+
+type StatSection = {
+  title: string;
+  cards: StatCardDef[];
+};
+
+const SECTIONS: StatSection[] = [
+  {
+    title: 'Orders Today',
+    cards: [
+      { key: 'todaysPickups', label: "Today's Pickups", icon: <Inventory2OutlinedIcon />, color: 'info', driverFeature: true },
+      { key: 'pendingPickups', label: 'Pending Pickups', icon: <PendingActionsOutlinedIcon />, color: 'warning', driverFeature: true },
+      { key: 'laundryInProgress', label: 'Laundry In Progress', icon: <LocalLaundryServiceOutlinedIcon />, color: 'info' },
+      { key: 'readyForDelivery', label: 'Ready for Delivery', icon: <Inventory2OutlinedIcon />, color: 'secondary' },
+      { key: 'expressOrders', label: 'Express Orders', icon: <BoltOutlinedIcon />, color: 'warning' },
+      { key: 'deliveredOrdersToday', label: 'Delivered Today', icon: <LocalShippingOutlinedIcon />, color: 'success' },
+    ],
+  },
+  {
+    title: 'Revenue & Payments',
+    cards: [
+      { key: 'pendingPayments', label: 'Pending Payments', icon: <ReceiptLongOutlinedIcon />, color: 'error' },
+      { key: 'dailyRevenue', label: 'Daily Revenue', format: 'currency', icon: <TrendingUpOutlinedIcon />, color: 'success' },
+      { key: 'monthlyRevenue', label: 'Monthly Revenue', format: 'currency', icon: <CalendarMonthOutlinedIcon />, color: 'primary' },
+    ],
+  },
+  {
+    title: 'People',
+    cards: [
+      { key: 'customerCount', label: 'Customers', icon: <PeopleOutlineIcon />, color: 'primary' },
+      { key: 'driverCount', label: 'Active Drivers', icon: <BadgeOutlinedIcon />, color: 'secondary', driverFeature: true },
+    ],
+  },
 ];
 
 function useStatsOrDefault() {
@@ -64,33 +105,53 @@ export function DashboardPage() {
   }));
 
   return (
-    <Stack spacing={3}>
+    <Stack spacing={4}>
       <Typography variant="h5" fontWeight={700}>
         Dashboard
       </Typography>
 
-      <Grid container spacing={2}>
-        {STAT_CARDS.map((card) => (
-          <Grid key={card.key} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-            <Card>
-              <CardActionArea onClick={() => navigate(DASHBOARD_CARD_LINKS[card.key])}>
-                <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    {card.label}
-                  </Typography>
-                  {isLoading ? (
-                    <Skeleton width={80} height={36} />
-                  ) : (
-                    <Typography variant="h5" fontWeight={700}>
-                      {card.format === 'currency' ? formatCurrency(stats[card.key] as number) : (stats[card.key] as number)}
-                    </Typography>
-                  )}
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      {SECTIONS.map((section) => {
+        const cards = section.cards.filter((card) => !card.driverFeature || DRIVER_LOGISTICS_ENABLED);
+        if (cards.length === 0) return null;
+
+        return (
+          <Box key={section.title}>
+            <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 1.5, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+              {section.title}
+            </Typography>
+            <Grid container spacing={2}>
+              {cards.map((card) => (
+                <Grid key={card.key} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                  <Card>
+                    <CardActionArea onClick={() => navigate(DASHBOARD_CARD_LINKS[card.key])}>
+                      <CardContent>
+                        <Stack direction="row" spacing={1.5} alignItems="center" mb={1}>
+                          <Avatar
+                            variant="rounded"
+                            sx={{ bgcolor: `${card.color}.main`, width: 36, height: 36, opacity: 0.9 }}
+                          >
+                            {card.icon}
+                          </Avatar>
+                          <Typography variant="body2" color="text.secondary">
+                            {card.label}
+                          </Typography>
+                        </Stack>
+                        {isLoading ? (
+                          <Skeleton width={80} height={36} />
+                        ) : (
+                          <Typography variant="h5" fontWeight={700}>
+                            {card.format === 'currency' ? formatCurrency(stats[card.key] as number) : (stats[card.key] as number)}
+                          </Typography>
+                        )}
+                      </CardContent>
+                    </CardActionArea>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        );
+      })}
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 7 }}>
