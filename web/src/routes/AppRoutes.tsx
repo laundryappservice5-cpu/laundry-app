@@ -18,6 +18,7 @@ import { ServicesPage } from '../pages/services/ServicesPage';
 import { ReportsPage } from '../pages/reports/ReportsPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { DRIVER_LOGISTICS_ENABLED } from '../utils/featureFlags';
 
 export function AppRoutes() {
   const user = useAppSelector((state) => state.auth.user);
@@ -32,13 +33,17 @@ export function AppRoutes() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/customers" element={<CustomerListPage />} />
           <Route path="/customers/:id" element={<CustomerDetailPage />} />
-          <Route path="/pickups" element={<PickupListPage />} />
-          <Route path="/pickups/new" element={<PickupCreatePage />} />
-          <Route path="/pickups/:id" element={<PickupDetailPage />} />
+          {DRIVER_LOGISTICS_ENABLED && (
+            <>
+              <Route path="/pickups" element={<PickupListPage />} />
+              <Route path="/pickups/new" element={<PickupCreatePage />} />
+              <Route path="/pickups/:id" element={<PickupDetailPage />} />
+              <Route path="/drivers" element={<DriverListPage />} />
+            </>
+          )}
           <Route path="/orders" element={<OrderListPage />} />
           <Route path="/orders/walk-in" element={<WalkInOrderCreatePage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
-          <Route path="/drivers" element={<DriverListPage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/profile" element={<ProfilePage />} />

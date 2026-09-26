@@ -222,4 +222,9 @@ export function printThermalReceipt(bill: Bill, order: Order, settings?: Setting
     printWindow.focus();
     printWindow.print();
   };
+  // Fires once the print dialog closes, whether the user printed or hit Cancel —
+  // close the receipt popup either way so they land back on the order page.
+  printWindow.onafterprint = () => {
+    printWindow.close();
+  };
 }

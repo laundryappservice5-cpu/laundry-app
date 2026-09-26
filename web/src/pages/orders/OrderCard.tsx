@@ -4,6 +4,7 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import { OrderStageChip } from '../../components/StatusChip';
 import { ExpressBadge } from '../../components/ExpressBadge';
 import { formatDateTime, getName } from '../../utils/formatters';
+import { DRIVER_LOGISTICS_ENABLED } from '../../utils/featureFlags';
 import type { Order } from '../../types';
 
 export function OrderCard({ order, onClick }: { order: Order; onClick: () => void }) {
@@ -17,12 +18,14 @@ export function OrderCard({ order, onClick }: { order: Order; onClick: () => voi
             </Typography>
             <OrderStageChip stage={order.currentStatus} />
           </Stack>
-          <Stack direction="row" spacing={1} alignItems="center" color="text.secondary" mb={0.5}>
-            <LocalShippingIcon fontSize="small" />
-            <Typography variant="body2" noWrap>
-              {getName(order.driver, 'Unassigned')}
-            </Typography>
-          </Stack>
+          {DRIVER_LOGISTICS_ENABLED && (
+            <Stack direction="row" spacing={1} alignItems="center" color="text.secondary" mb={0.5}>
+              <LocalShippingIcon fontSize="small" />
+              <Typography variant="body2" noWrap>
+                {getName(order.driver, 'Unassigned')}
+              </Typography>
+            </Stack>
+          )}
           <Stack direction="row" spacing={1} alignItems="center" color="text.secondary" mb={1}>
             <ScheduleIcon fontSize="small" />
             <Typography variant="body2">{formatDateTime(order.createdAt)}</Typography>

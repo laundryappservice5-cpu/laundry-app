@@ -17,6 +17,12 @@ import { useUpdateStageEntryMutation } from '../api/orderApi';
 import type { OrderStage, OrderStatusHistoryEntry } from '../types';
 import { ORDER_STAGE_LABELS, ORDER_STAGE_LIST } from '../utils/constants';
 import { formatDateTime, getName } from '../utils/formatters';
+import { DRIVER_LOGISTICS_ENABLED } from '../utils/featureFlags';
+
+const DRIVER_ONLY_STAGES: OrderStage[] = ['PICKUP_CREATED', 'DRIVER_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY'];
+const VISIBLE_STAGES = DRIVER_LOGISTICS_ENABLED
+  ? ORDER_STAGE_LIST
+  : ORDER_STAGE_LIST.filter((stage) => !DRIVER_ONLY_STAGES.includes(stage));
 
 interface OrderStageTimelineProps {
   orderId: string;
@@ -32,7 +38,8 @@ export function OrderStageTimeline({ orderId, currentStatus, statusHistory }: Or
   return (
     <>
       <Grid container spacing={1.5}>
-        {ORDER_STAGE_LIST.map((stage, index) => {
+        {VISIBLE_STAGES.map((stage) => {
+          const index = ORDER_STAGE_LIST.indexOf(stage);
           const entry = historyByStage.get(stage);
           const isCompleted = index <= currentIndex;
           const isCurrent = stage === currentStatus;

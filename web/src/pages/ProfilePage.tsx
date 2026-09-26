@@ -9,6 +9,7 @@ import { useChangePasswordMutation, useCreateAdminMutation } from '../api/authAp
 import { useGetSettingsQuery, useUpdateSettingsMutation } from '../api/settingsApi';
 import { useAppSelector } from '../app/hooks';
 import { setCurrency, type Currency } from '../utils/currencyStore';
+import { DRIVER_LOGISTICS_ENABLED } from '../utils/featureFlags';
 
 function PasswordField({
   label,
@@ -235,65 +236,71 @@ export function ProfilePage() {
             <MenuItem value="AED">AED — UAE Dirham</MenuItem>
           </TextField>
 
-          <Stack direction="row" spacing={2} mt={2}>
-            <TextField
-              label="Home Pickup Charge"
-              type="number"
-              fullWidth
-              value={pickupCharge}
-              onChange={(e) => setPickupCharge(e.target.value)}
-              helperText="Added to the bill when a driver collects the order."
-            />
-            <TextField
-              label="Home Delivery Charge"
-              type="number"
-              fullWidth
-              value={deliveryCharge}
-              onChange={(e) => setDeliveryCharge(e.target.value)}
-              helperText="Added to the bill when a driver delivers the order."
-            />
-          </Stack>
-          <Button variant="outlined" sx={{ mt: 2 }} disabled={isSavingSettings} onClick={handleSaveCharges}>
-            {isSavingSettings ? 'Saving…' : 'Save Charges'}
-          </Button>
+          {DRIVER_LOGISTICS_ENABLED && (
+            <>
+              <Stack direction="row" spacing={2} mt={2}>
+                <TextField
+                  label="Home Pickup Charge"
+                  type="number"
+                  fullWidth
+                  value={pickupCharge}
+                  onChange={(e) => setPickupCharge(e.target.value)}
+                  helperText="Added to the bill when a driver collects the order."
+                />
+                <TextField
+                  label="Home Delivery Charge"
+                  type="number"
+                  fullWidth
+                  value={deliveryCharge}
+                  onChange={(e) => setDeliveryCharge(e.target.value)}
+                  helperText="Added to the bill when a driver delivers the order."
+                />
+              </Stack>
+              <Button variant="outlined" sx={{ mt: 2 }} disabled={isSavingSettings} onClick={handleSaveCharges}>
+                {isSavingSettings ? 'Saving…' : 'Save Charges'}
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent>
-          <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-            Mobile App
-          </Typography>
-          <Typography variant="body2" color="text.secondary" mb={2}>
-            Paste a link to the latest driver app build (e.g. a GitHub Release or Google Drive share link). Drivers can open the
-            download page below to install it — no admin login needed.
-          </Typography>
-          <Stack spacing={2}>
-            <TextField
-              label="APK Download Link"
-              fullWidth
-              value={appInfo.latestApkUrl}
-              onChange={(e) => setAppInfo({ ...appInfo, latestApkUrl: e.target.value })}
-              placeholder="https://github.com/your-org/app/releases/latest/download/app.apk"
-            />
-            <TextField
-              label="Version"
-              fullWidth
-              value={appInfo.latestApkVersion}
-              onChange={(e) => setAppInfo({ ...appInfo, latestApkVersion: e.target.value })}
-              placeholder="1.4.2"
-            />
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-              <Button variant="outlined" disabled={isSavingSettings} onClick={handleSaveAppInfo}>
-                {isSavingSettings ? 'Saving…' : 'Save App Link'}
-              </Button>
-              <Button variant="text" onClick={handleCopyDownloadLink}>
-                {linkCopied ? 'Copied!' : 'Copy Driver Download Link'}
-              </Button>
+      {DRIVER_LOGISTICS_ENABLED && (
+        <Card>
+          <CardContent>
+            <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+              Mobile App
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              Paste a link to the latest driver app build (e.g. a GitHub Release or Google Drive share link). Drivers can open the
+              download page below to install it — no admin login needed.
+            </Typography>
+            <Stack spacing={2}>
+              <TextField
+                label="APK Download Link"
+                fullWidth
+                value={appInfo.latestApkUrl}
+                onChange={(e) => setAppInfo({ ...appInfo, latestApkUrl: e.target.value })}
+                placeholder="https://github.com/your-org/app/releases/latest/download/app.apk"
+              />
+              <TextField
+                label="Version"
+                fullWidth
+                value={appInfo.latestApkVersion}
+                onChange={(e) => setAppInfo({ ...appInfo, latestApkVersion: e.target.value })}
+                placeholder="1.4.2"
+              />
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                <Button variant="outlined" disabled={isSavingSettings} onClick={handleSaveAppInfo}>
+                  {isSavingSettings ? 'Saving…' : 'Save App Link'}
+                </Button>
+                <Button variant="text" onClick={handleCopyDownloadLink}>
+                  {linkCopied ? 'Copied!' : 'Copy Driver Download Link'}
+                </Button>
+              </Stack>
             </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent>
