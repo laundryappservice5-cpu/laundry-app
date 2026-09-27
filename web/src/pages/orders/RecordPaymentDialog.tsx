@@ -12,6 +12,7 @@ interface RecordPaymentDialogProps {
   billId: string;
   balanceDue: number;
   onClose: () => void;
+  onRecorded?: () => void | Promise<void>;
 }
 
 type CollectionOption = 'CARD' | 'CASH' | 'PARTIAL';
@@ -22,7 +23,7 @@ const OPTIONS: { key: CollectionOption; label: string; icon: ReactElement }[] = 
   { key: 'PARTIAL', label: 'Partial Payment (Cash + Card)', icon: <CallSplitIcon /> },
 ];
 
-export function RecordPaymentDialog({ open, billId, balanceDue, onClose }: RecordPaymentDialogProps) {
+export function RecordPaymentDialog({ open, billId, balanceDue, onClose, onRecorded }: RecordPaymentDialogProps) {
   const [recordPayment, { isLoading, error }] = useRecordPaymentMutation();
   const [option, setOption] = useState<CollectionOption | null>(null);
   const [cashAmount, setCashAmount] = useState('');
@@ -45,6 +46,7 @@ export function RecordPaymentDialog({ open, billId, balanceDue, onClose }: Recor
 
   async function handleCollectFull(method: PaymentMethod) {
     await recordPayment({ id: billId, splits: [{ amount: balanceDue, method }] }).unwrap();
+    await onRecorded?.();
     handleClose();
   }
 
@@ -55,6 +57,7 @@ export function RecordPaymentDialog({ open, billId, balanceDue, onClose }: Recor
     if (card > 0) splits.push({ amount: card, method: 'CARD' });
     try {
       await recordPayment({ id: billId, splits }).unwrap();
+      await onRecorded?.();
       handleClose();
     } catch {
       // dialog stays open so the amounts can be corrected and retried

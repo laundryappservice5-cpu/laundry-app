@@ -6,7 +6,9 @@ import { CustomerAutocomplete } from '../../components/CustomerAutocomplete';
 import { CollectedItemsEditor } from '../../components/CollectedItemsEditor';
 import { CustomerCreateDialog } from '../customers/CustomerCreateDialog';
 import { DRIVER_LOGISTICS_ENABLED } from '../../utils/featureFlags';
-import type { Customer } from '../../types';
+import type { Customer, CollectedItem } from '../../types';
+
+const NO_INITIAL_ITEMS: CollectedItem[] = [];
 
 export function WalkInOrderCreatePage() {
   const navigate = useNavigate();
@@ -83,14 +85,12 @@ export function WalkInOrderCreatePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent>
-          <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-            3. Items Collected
-          </Typography>
-          <CollectedItemsEditor items={[]} onChange={setItems} hideSaveButton onSave={() => {}} />
-        </CardContent>
-      </Card>
+      <Box>
+        <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+          3. Items Collected
+        </Typography>
+        <CollectedItemsEditor items={NO_INITIAL_ITEMS} onChange={setItems} hideSaveButton onSave={() => {}} />
+      </Box>
 
       <Box>
         <Button variant="contained" size="large" disabled={!canSubmit || isLoading} onClick={handleSubmit}>

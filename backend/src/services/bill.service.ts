@@ -8,7 +8,6 @@ import { UserRole, User } from '../models/User';
 import { Pickup } from '../models/Pickup';
 import { Payment } from '../models/Payment';
 import { getSettings } from '../models/Settings';
-import { isAtOrPastStage, OrderStage } from '../models/orderStages';
 import { notificationService } from './notification.service';
 
 export const billService = {
@@ -27,9 +26,6 @@ export const billService = {
   ) {
     const order = await orderService.findById(orderId);
     if (!order) throw ApiError.notFound('Order not found');
-    if (!isAtOrPastStage(order.currentStatus as OrderStage, 'READY_FOR_DELIVERY')) {
-      throw ApiError.badRequest('Bill can only be generated once the order is marked Ready for Delivery or later');
-    }
 
     const existing = await billRepository.findByOrder(orderId);
     if (existing && existing.paymentStatus !== 'PENDING') {
