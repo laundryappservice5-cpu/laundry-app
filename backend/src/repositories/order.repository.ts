@@ -53,7 +53,7 @@ export const orderRepository = {
     }
 
     return Promise.all([
-      Order.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('customer').populate('driver'),
+      Order.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('customer').populate('driver').populate('bill'),
       Order.countDocuments(query),
     ]);
   },

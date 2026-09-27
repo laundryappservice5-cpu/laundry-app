@@ -1,4 +1,4 @@
-import type { OrderStage, PickupStatus } from '../types';
+import type { OrderStage, PaymentStatus, PickupStatus } from '../types';
 
 export const ORDER_STAGE_LABELS: Record<OrderStage, string> = {
   PICKUP_CREATED: 'Pickup Created',
@@ -47,3 +47,15 @@ export const ORDER_STAGE_COLORS: Record<OrderStage, 'default' | 'info' | 'warnin
 };
 
 export const PAYMENT_METHODS = ['CASH', 'UPI', 'CARD'] as const;
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  PENDING: 'Not Paid',
+  PARTIAL: 'Partially Paid',
+  PAID: 'Paid',
+};
+
+export const PAYMENT_STATUS_COLORS: Record<PaymentStatus, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
+  PENDING: 'error',
+  PARTIAL: 'warning',
+  PAID: 'success',
+};

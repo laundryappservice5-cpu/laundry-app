@@ -6,12 +6,12 @@ import { DataTable, type DataTableColumn } from '../../components/DataTable';
 import { CardGrid } from '../../components/CardGrid';
 import { ViewToggle } from '../../components/ViewToggle';
 import { useAppSelector } from '../../app/hooks';
-import { OrderStageChip } from '../../components/StatusChip';
+import { OrderStageChip, PaymentStatusChip } from '../../components/StatusChip';
 import { ExpressBadge } from '../../components/ExpressBadge';
-import { formatDateTime, getName } from '../../utils/formatters';
+import { formatCurrency, formatDateTime, getName } from '../../utils/formatters';
 import { ORDER_STAGE_LABELS, ORDER_STAGE_LIST } from '../../utils/constants';
 import { DRIVER_LOGISTICS_ENABLED } from '../../utils/featureFlags';
-import type { Order, OrderStage, PaymentStatus } from '../../types';
+import type { Bill, Order, OrderStage, PaymentStatus } from '../../types';
 import { OrderCard } from './OrderCard';
 
 const IN_PROGRESS_EXCLUDE: OrderStage[] = ['READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'DELIVERED'];
@@ -40,6 +40,10 @@ export function OrderListPage() {
   });
   const orders = data?.items ?? [];
 
+  function getBill(order: Order): Bill | undefined {
+    return typeof order.bill === 'object' ? order.bill : undefined;
+  }
+
   const columns: DataTableColumn<Order>[] = [
     { key: 'customer', header: 'Customer', render: (o) => getName(o.customer), sortAccessor: (o) => getName(o.customer).toLowerCase() },
     ...(DRIVER_LOGISTICS_ENABLED
@@ -54,6 +58,24 @@ export function OrderListPage() {
       : []),
     { key: 'created', header: 'Created', render: (o) => formatDateTime(o.createdAt), sortAccessor: (o) => o.createdAt },
     { key: 'status', header: 'Status', render: (o) => <OrderStageChip stage={o.currentStatus} />, sortAccessor: (o) => o.currentStatus },
+    {
+      key: 'paymentStatus',
+      header: 'Paid Status',
+      render: (o) => {
+        const bill = getBill(o);
+        return bill ? <PaymentStatusChip status={bill.paymentStatus} /> : '—';
+      },
+      sortAccessor: (o) => getBill(o)?.paymentStatus ?? '',
+    },
+    {
+      key: 'amount',
+      header: 'Amount',
+      render: (o) => {
+        const bill = getBill(o);
+        return bill ? formatCurrency(bill.finalAmount) : '—';
+      },
+      sortAccessor: (o) => getBill(o)?.finalAmount ?? 0,
+    },
     {
       key: 'express',
       header: '',
