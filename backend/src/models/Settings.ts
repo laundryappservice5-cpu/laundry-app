@@ -15,6 +15,7 @@ export interface ISettings {
   homeDeliveryCharge: number;
   latestApkUrl?: string;
   latestApkVersion?: string;
+  appVersion: 1 | 2;
   updatedAt: Date;
 }
 
@@ -31,6 +32,7 @@ const settingsSchema = new Schema<ISettings>(
     homeDeliveryCharge: { type: Number, default: 0 },
     latestApkUrl: { type: String },
     latestApkVersion: { type: String },
+    appVersion: { type: Number, enum: [1, 2], default: 2 },
   },
   { timestamps: true },
 );

@@ -8,6 +8,7 @@ export interface IPayment {
   status: 'PENDING' | 'PAID';
   collectedBy: Types.ObjectId;
   batchId?: Types.ObjectId;
+  referenceId?: string;
   settledToAdmin: boolean;
   settledAt?: Date;
   settledBy?: Types.ObjectId;
@@ -23,6 +24,7 @@ const paymentSchema = new Schema<IPayment>(
     status: { type: String, enum: ['PENDING', 'PAID'], default: 'PAID' },
     collectedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     batchId: { type: Schema.Types.ObjectId },
+    referenceId: { type: String, trim: true },
     settledToAdmin: { type: Boolean, default: true },
     settledAt: { type: Date },
     settledBy: { type: Schema.Types.ObjectId, ref: 'User' },

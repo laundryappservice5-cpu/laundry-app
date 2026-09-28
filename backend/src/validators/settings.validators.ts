@@ -12,4 +12,5 @@ export const updateSettingsSchema = z.object({
   homeDeliveryCharge: z.number().min(0).optional(),
   latestApkUrl: z.union([z.string().url(), z.literal('')]).optional(),
   latestApkVersion: z.string().optional(),
+  appVersion: z.union([z.literal(1), z.literal(2)]).optional(),
 });

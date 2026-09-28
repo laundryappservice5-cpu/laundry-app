@@ -43,6 +43,9 @@ export interface Service {
   name: string;
   isActive: boolean;
   flatPrice?: number;
+  category?: string;
+  unit?: string;
+  description?: string;
 }
 
 export type PickupStatus = 'CREATED' | 'DRIVER_ASSIGNED' | 'ACCEPTED' | 'PICKED_UP' | 'CANCELLED';
@@ -162,10 +165,31 @@ export interface Payment {
   status: PaymentStatus;
   collectedBy: PublicUser | string;
   batchId?: string;
+  referenceId?: string;
   settledToAdmin: boolean;
   settledAt?: string;
   settledBy?: PublicUser | string;
   createdAt: string;
+}
+
+export interface PaymentListRow {
+  _id: string;
+  amount: number;
+  method: PaymentMethod;
+  referenceId?: string;
+  createdAt: string;
+  bill: Bill;
+  order: Order;
+  customer: Customer;
+  collectedBy: PublicUser;
+}
+
+export interface PaymentSummary {
+  totalCollected: number;
+  todaysCollection: number;
+  monthsCollection: number;
+  pendingAmount: number;
+  refunds: number;
 }
 
 export interface PaymentLeg {
@@ -205,6 +229,14 @@ export interface DashboardStats {
   monthlyRevenue: number;
   customerCount: number;
   driverCount: number;
+  todaysOrders: number;
+  yesterdaysOrders: number;
+  pendingOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  yesterdaysRevenue: number;
+  lastMonthRevenue: number;
+  pendingPaymentsAmount: number;
 }
 
 export interface ApiSuccess<T> {

@@ -50,7 +50,7 @@ export function ReportsPage() {
   );
 }
 
-function DriverPerformanceTab() {
+export function DriverPerformanceTab() {
   const { data = [], isFetching } = useGetDriverPerformanceQuery();
   const { pageItems, page, limit, total, onPageChange, onLimitChange } = useClientPagination(data, 10);
   const columns: DataTableColumn<{ driverName: string; completedOrders: number }>[] = [
@@ -68,7 +68,7 @@ function DriverPerformanceTab() {
   );
 }
 
-function AdminPerformanceTab() {
+export function AdminPerformanceTab() {
   const { data = [], isFetching } = useGetAdminPerformanceQuery();
   const { pageItems, page, limit, total, onPageChange, onLimitChange } = useClientPagination(data, 10);
   const columns: DataTableColumn<{ adminName: string; billsGenerated: number; totalRevenue: number }>[] = [
@@ -87,7 +87,7 @@ function AdminPerformanceTab() {
   );
 }
 
-function DiscountsTab() {
+export function DiscountsTab() {
   const { data = [], isFetching } = useGetDiscountsReportQuery();
   const { pageItems, page, limit, total, onPageChange, onLimitChange } = useClientPagination(data, 10);
   const columns: DataTableColumn<Bill>[] = [
@@ -114,7 +114,7 @@ function methodSummary(row: PaymentReportRow): string {
   return `Partial (${row.legs.map((l) => `${l.method}: ${formatCurrency(l.amount)}`).join(' + ')})`;
 }
 
-function PaymentsTab() {
+export function PaymentsTab() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -153,7 +153,7 @@ function PaymentsTab() {
   );
 }
 
-function RepeatCustomersTab() {
+export function RepeatCustomersTab() {
   const { data = [], isFetching } = useGetRepeatCustomersQuery();
   const { pageItems, page, limit, total, onPageChange, onLimitChange } = useClientPagination(data, 10);
   const columns: DataTableColumn<{ name: string; mobileNumber: string; orderCount: number }>[] = [
@@ -172,7 +172,7 @@ function RepeatCustomersTab() {
   );
 }
 
-function ExpressOrdersTab() {
+export function ExpressOrdersTab() {
   const { data = [], isFetching } = useGetExpressOrdersQuery();
   const { pageItems, page, limit, total, onPageChange, onLimitChange } = useClientPagination(data, 10);
   const columns: DataTableColumn<Order>[] = [

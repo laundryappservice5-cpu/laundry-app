@@ -8,6 +8,9 @@ const router = Router();
 
 router.use(requireAuth, requireRole('ROOT_ADMIN', 'ADMIN'));
 
+router.get('/export', paymentController.exportPayments);
+router.get('/', paymentController.listPayments);
+router.get('/summary', paymentController.paymentSummary);
 router.get('/pending-by-driver', paymentController.pendingByDriver);
 router.get('/pending/:driverId', paymentController.pendingForDriver);
 router.patch('/settle', validateBody(settlePaymentsSchema), paymentController.settle);

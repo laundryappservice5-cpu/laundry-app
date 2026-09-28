@@ -8,12 +8,18 @@ export const createClothTypeSchema = z.object({
 export const createServiceSchema = z.object({
   name: z.string().min(1),
   flatPrice: z.number().positive().optional(),
+  category: z.string().min(1).optional(),
+  unit: z.string().min(1).optional(),
+  description: z.string().optional(),
 });
 
 export const updateServiceSchema = z.object({
   name: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
   flatPrice: z.number().positive().nullable().optional(),
+  category: z.string().min(1).optional(),
+  unit: z.string().min(1).optional(),
+  description: z.string().optional(),
 });
 
 export const setClothTypePriceSchema = z.object({

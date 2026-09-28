@@ -79,8 +79,9 @@ export const deleteClothType = asyncHandler(async (req: Request, res: Response) 
   ok(res, { deleted: true });
 });
 
-export const listServices = asyncHandler(async (_req: Request, res: Response) => {
-  const items = await Service.find({ isActive: true }).sort({ name: 1 });
+export const listServices = asyncHandler(async (req: Request, res: Response) => {
+  const filter = req.query.all === 'true' ? {} : { isActive: true };
+  const items = await Service.find(filter).sort({ name: 1 });
   ok(res, items);
 });
 

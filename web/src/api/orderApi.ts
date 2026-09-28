@@ -9,6 +9,12 @@ export interface ListOrdersParams {
   isExpress?: boolean;
   updatedToday?: boolean;
   paymentStatus?: PaymentStatus;
+  search?: string;
+  service?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  minAmount?: number;
+  maxAmount?: number;
   page?: number;
   limit?: number;
 }

@@ -5,29 +5,57 @@ import { orderService } from '../services/order.service';
 import { getPagination } from '../utils/pagination';
 import { ApiError } from '../utils/ApiError';
 import { OrderStage } from '../models/orderStages';
-import { PaymentStatus } from '../models/Bill';
+import { PaymentStatus, IBill } from '../models/Bill';
+import { buildCsv } from '../utils/csv';
+import type { IOrder } from '../models/Order';
+import type { ICustomer } from '../models/Customer';
 
 function splitCsv(value: unknown): string[] | undefined {
   if (typeof value !== 'string' || value.length === 0) return undefined;
   return value.split(',').map((v) => v.trim()).filter(Boolean);
 }
 
+function buildOrderFilterFromQuery(req: Request) {
+  const currentStatusList = splitCsv(req.query.currentStatus) as OrderStage[] | undefined;
+  return {
+    currentStatus: currentStatusList && currentStatusList.length === 1 ? currentStatusList[0] : currentStatusList,
+    excludeStatus: splitCsv(req.query.excludeStatus) as OrderStage[] | undefined,
+    driver: req.query.driver as string | undefined,
+    isExpress: req.query.isExpress === 'true',
+    updatedToday: req.query.updatedToday === 'true',
+    paymentStatus: req.query.paymentStatus as PaymentStatus | undefined,
+    search: req.query.search as string | undefined,
+    service: req.query.service as string | undefined,
+    dateFrom: req.query.dateFrom as string | undefined,
+    dateTo: req.query.dateTo as string | undefined,
+    minAmount: req.query.minAmount ? Number(req.query.minAmount) : undefined,
+    maxAmount: req.query.maxAmount ? Number(req.query.maxAmount) : undefined,
+  };
+}
+
 export const listOrders = asyncHandler(async (req: Request, res: Response) => {
   const { page, limit, skip } = getPagination(req);
-  const currentStatusList = splitCsv(req.query.currentStatus) as OrderStage[] | undefined;
-  const [items, total] = await orderService.list(
-    {
-      currentStatus: currentStatusList && currentStatusList.length === 1 ? currentStatusList[0] : currentStatusList,
-      excludeStatus: splitCsv(req.query.excludeStatus) as OrderStage[] | undefined,
-      driver: req.query.driver as string | undefined,
-      isExpress: req.query.isExpress === 'true',
-      updatedToday: req.query.updatedToday === 'true',
-      paymentStatus: req.query.paymentStatus as PaymentStatus | undefined,
-    },
-    skip,
-    limit,
-  );
+  const [items, total] = await orderService.list(buildOrderFilterFromQuery(req), skip, limit);
   paginated(res, items, { page, limit, total });
+});
+
+export const exportOrders = asyncHandler(async (req: Request, res: Response) => {
+  const [items] = await orderService.list(buildOrderFilterFromQuery(req), 0, 100000);
+
+  const csv = buildCsv<IOrder>(
+    [
+      { header: 'Order ID', accessor: (o) => String(o._id).slice(-8).toUpperCase() },
+      { header: 'Customer', accessor: (o) => (o.customer as unknown as ICustomer)?.name ?? '' },
+      { header: 'Phone', accessor: (o) => (o.customer as unknown as ICustomer)?.mobileNumber ?? '' },
+      { header: 'Status', accessor: (o) => o.currentStatus },
+      { header: 'Payment Status', accessor: (o) => (o.bill as unknown as IBill)?.paymentStatus ?? '' },
+      { header: 'Amount', accessor: (o) => (o.bill as unknown as IBill)?.finalAmount ?? 0 },
+      { header: 'Created At', accessor: (o) => new Date(o.createdAt).toISOString() },
+    ],
+    items,
+  );
+
+  res.type('text/csv').attachment('orders.csv').send(csv);
 });
 
 export const myDeliveryJobs = asyncHandler(async (req: Request, res: Response) => {

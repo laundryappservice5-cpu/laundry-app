@@ -27,11 +27,31 @@ export const catalogApi = apiSlice.injectEndpoints({
       query: () => ({ url: '/services' }),
       providesTags: ['Service'],
     }),
-    createService: builder.mutation<Service, { name: string; flatPrice?: number }>({
+    // Includes inactive services too — for the admin Services management table,
+    // where disabled services still need to be visible (to re-enable/edit them).
+    listAllServices: builder.query<Service[], void>({
+      query: () => ({ url: '/services', params: { all: 'true' } }),
+      providesTags: ['Service'],
+    }),
+    createService: builder.mutation<
+      Service,
+      { name: string; flatPrice?: number; category?: string; unit?: string; description?: string }
+    >({
       query: (body) => ({ url: '/services', method: 'POST', data: body }),
       invalidatesTags: ['Service'],
     }),
-    updateService: builder.mutation<Service, { id: string; flatPrice?: number | null; name?: string; isActive?: boolean }>({
+    updateService: builder.mutation<
+      Service,
+      {
+        id: string;
+        flatPrice?: number | null;
+        name?: string;
+        isActive?: boolean;
+        category?: string;
+        unit?: string;
+        description?: string;
+      }
+    >({
       query: ({ id, ...data }) => ({ url: `/services/${id}`, method: 'PATCH', data }),
       invalidatesTags: ['Service'],
     }),
@@ -49,6 +69,7 @@ export const {
   useSetClothTypeIconMutation,
   useDeleteClothTypeMutation,
   useListServicesQuery,
+  useListAllServicesQuery,
   useCreateServiceMutation,
   useUpdateServiceMutation,
   useDeleteServiceMutation,

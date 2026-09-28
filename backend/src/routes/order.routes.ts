@@ -18,6 +18,7 @@ router.get('/my-deliveries', requireRole('DRIVER'), orderController.myDeliveryJo
 router.get('/available-for-delivery', requireRole('DRIVER'), orderController.availableForDelivery);
 router.get('/my-store-dropoffs', requireRole('DRIVER'), orderController.myStoreDropoffs);
 router.get('/my-history', requireRole('DRIVER'), orderController.myOrderHistory);
+router.get('/export', requireRole('ROOT_ADMIN', 'ADMIN'), orderController.exportOrders);
 router.get('/', requireRole('ROOT_ADMIN', 'ADMIN'), orderController.listOrders);
 router.post('/walk-in', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(createInStoreOrderSchema), orderController.createInStoreOrder);
 router.get('/:id', orderController.getOrderById);

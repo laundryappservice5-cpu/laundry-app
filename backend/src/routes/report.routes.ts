@@ -7,6 +7,7 @@ const router = Router();
 router.use(requireAuth, requireRole('ROOT_ADMIN', 'ADMIN'));
 
 router.get('/dashboard', reportController.dashboard);
+router.get('/monthly-earnings', reportController.monthlyEarnings);
 router.get('/revenue-chart', reportController.revenueChart);
 router.get('/order-status-chart', reportController.orderStatusChart);
 router.get('/driver-performance', reportController.driverPerformance);

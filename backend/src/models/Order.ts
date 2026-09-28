@@ -63,5 +63,7 @@ orderSchema.index({ currentStatus: 1 });
 orderSchema.index({ driver: 1 });
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ customer: 1 });
+orderSchema.index({ 'collectedItems.service': 1 });
+orderSchema.index({ bill: 1 });
 
 export const Order = model<IOrder>('Order', orderSchema);
