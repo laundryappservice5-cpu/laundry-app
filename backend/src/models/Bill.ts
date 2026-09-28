@@ -84,5 +84,7 @@ const billSchema = new Schema<IBill>(
 
 billSchema.index({ paymentStatus: 1 });
 billSchema.index({ createdAt: -1 });
+billSchema.index({ finalAmount: 1 });
+billSchema.index({ order: 1 });
 
 export const Bill = model<IBill>('Bill', billSchema);

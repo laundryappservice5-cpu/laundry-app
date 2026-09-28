@@ -14,6 +14,7 @@ export interface Settings {
   homeDeliveryCharge: number;
   latestApkUrl?: string;
   latestApkVersion?: string;
+  appVersion: 1 | 2;
 }
 
 export interface PublicAppInfo {
@@ -48,6 +49,7 @@ export const settingsApi = apiSlice.injectEndpoints({
           | 'homeDeliveryCharge'
           | 'latestApkUrl'
           | 'latestApkVersion'
+          | 'appVersion'
         >
       >
     >({

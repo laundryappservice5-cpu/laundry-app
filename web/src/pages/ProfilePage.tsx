@@ -390,6 +390,30 @@ export function ProfilePage() {
           </CardContent>
         </Card>
       )}
+
+      {user?.role === 'ROOT_ADMIN' && (
+        <Card>
+          <CardContent>
+            <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+              App Version
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Switch the whole app between the stable version and the in-progress version. Applies for everyone using the
+              app, not just this browser.
+            </Typography>
+            <TextField
+              select
+              label="Version"
+              value={settings?.appVersion ?? 1}
+              onChange={(e) => updateSettings({ appVersion: Number(e.target.value) as 1 | 2 })}
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value={1}>Version 1 (stable)</MenuItem>
+              <MenuItem value={2}>Version 2 (in progress)</MenuItem>
+            </TextField>
+          </CardContent>
+        </Card>
+      )}
     </Stack>
   );
 }

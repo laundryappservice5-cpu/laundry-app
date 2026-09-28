@@ -12,4 +12,12 @@ export const DASHBOARD_CARD_LINKS: Record<keyof DashboardStats, string> = {
   monthlyRevenue: '/reports?tab=payments',
   customerCount: '/customers',
   driverCount: '/drivers?active=true',
+  todaysOrders: '/orders',
+  yesterdaysOrders: '/orders',
+  pendingOrders: '/orders?status=PICKED_UP',
+  completedOrders: '/orders?status=DELIVERED',
+  cancelledOrders: '/orders',
+  yesterdaysRevenue: '/reports?tab=payments',
+  lastMonthRevenue: '/reports?tab=payments',
+  pendingPaymentsAmount: '/orders?paymentStatus=PENDING',
 };

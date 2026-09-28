@@ -7,6 +7,16 @@ interface RevenuePoint {
   total: number;
 }
 
+export interface MonthlyEarningsRow {
+  month: number;
+  orders: number;
+  revenue: number;
+  paid: number;
+  pending: number;
+  refunds: number;
+  netEarnings: number;
+}
+
 interface OrderStatusPoint {
   _id: string;
   count: number;
@@ -33,6 +43,10 @@ export const reportApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getDashboard: builder.query<DashboardStats, void>({
       query: () => ({ url: '/reports/dashboard' }),
+      providesTags: ['Report'],
+    }),
+    getMonthlyEarnings: builder.query<MonthlyEarningsRow[], { year: number }>({
+      query: ({ year }) => ({ url: '/reports/monthly-earnings', params: { year } }),
       providesTags: ['Report'],
     }),
     getRevenueChart: builder.query<RevenuePoint[], { days?: number }>({
@@ -70,6 +84,7 @@ export const reportApi = apiSlice.injectEndpoints({
 
 export const {
   useGetDashboardQuery,
+  useGetMonthlyEarningsQuery,
   useGetRevenueChartQuery,
   useGetOrderStatusChartQuery,
   useGetDriverPerformanceQuery,

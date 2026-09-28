@@ -8,6 +8,11 @@ export const dashboard = asyncHandler(async (_req: Request, res: Response) => {
   ok(res, await reportService.dashboard());
 });
 
+export const monthlyEarnings = asyncHandler(async (req: Request, res: Response) => {
+  const year = Number(req.query.year) || new Date().getFullYear();
+  ok(res, await reportService.monthlyEarnings(year));
+});
+
 export const revenueChart = asyncHandler(async (req: Request, res: Response) => {
   ok(res, await reportService.revenueChart(Number(req.query.days) || 30));
 });

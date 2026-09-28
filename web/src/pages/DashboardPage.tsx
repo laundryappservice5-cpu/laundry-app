@@ -87,6 +87,14 @@ function useStatsOrDefault() {
       monthlyRevenue: 0,
       customerCount: 0,
       driverCount: 0,
+      todaysOrders: 0,
+      yesterdaysOrders: 0,
+      pendingOrders: 0,
+      completedOrders: 0,
+      cancelledOrders: 0,
+      yesterdaysRevenue: 0,
+      lastMonthRevenue: 0,
+      pendingPaymentsAmount: 0,
     }
   );
 }

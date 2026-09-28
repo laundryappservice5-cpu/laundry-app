@@ -15,10 +15,16 @@ function startOfMonth(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
+function sumAmount(agg: { total: number }[]): number {
+  return agg[0]?.total ?? 0;
+}
+
 export const reportService = {
   async dashboard() {
     const today = startOfDay();
+    const yesterday = startOfDay(new Date(Date.now() - 24 * 60 * 60 * 1000));
     const monthStart = startOfMonth();
+    const lastMonthStart = startOfMonth(new Date(monthStart.getTime() - 1));
 
     const [
       todaysPickups,
@@ -32,6 +38,13 @@ export const reportService = {
       monthlyRevenueAgg,
       customerCount,
       driverCount,
+      todaysOrders,
+      yesterdaysOrders,
+      pendingOrders,
+      completedOrders,
+      yesterdaysRevenueAgg,
+      lastMonthRevenueAgg,
+      pendingPaymentsAmountAgg,
     ] = await Promise.all([
       Pickup.countDocuments({ createdAt: { $gte: today } }),
       Pickup.countDocuments({ status: { $in: ['CREATED', 'DRIVER_ASSIGNED', 'ACCEPTED'] } }),
@@ -44,9 +57,35 @@ export const reportService = {
       Payment.aggregate([{ $match: { createdAt: { $gte: monthStart } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
       Customer.countDocuments(),
       User.countDocuments({ role: 'DRIVER', isActive: true }),
+      Order.countDocuments({ createdAt: { $gte: today } }),
+      Order.countDocuments({ createdAt: { $gte: yesterday, $lt: today } }),
+      Order.countDocuments({ currentStatus: 'PICKED_UP' }),
+      Order.countDocuments({ currentStatus: 'DELIVERED' }),
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: yesterday, $lt: today } } },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+      ]),
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: lastMonthStart, $lt: monthStart } } },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+      ]),
+      Bill.aggregate([
+        { $match: { paymentStatus: { $in: ['PENDING', 'PARTIAL'] } } },
+        { $group: { _id: null, total: { $sum: { $subtract: ['$finalAmount', '$amountPaid'] } } } },
+      ]),
     ]);
 
     return {
+      // Cancellation isn't a supported order state yet — always 0 until that
+      // feature exists, rather than fabricating a status that can't happen.
+      cancelledOrders: 0,
+      todaysOrders,
+      yesterdaysOrders,
+      pendingOrders,
+      completedOrders,
+      yesterdaysRevenue: sumAmount(yesterdaysRevenueAgg),
+      lastMonthRevenue: sumAmount(lastMonthRevenueAgg),
+      pendingPaymentsAmount: sumAmount(pendingPaymentsAmountAgg),
       todaysPickups,
       pendingPickups,
       laundryInProgress,
@@ -59,6 +98,33 @@ export const reportService = {
       customerCount,
       driverCount,
     };
+  },
+
+  async monthlyEarnings(year: number) {
+    const start = new Date(year, 0, 1);
+    const end = new Date(year + 1, 0, 1);
+
+    const [orderCounts, billStats] = await Promise.all([
+      Order.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end } } },
+        { $group: { _id: { $month: '$createdAt' }, count: { $sum: 1 } } },
+      ]),
+      Bill.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end } } },
+        { $group: { _id: { $month: '$createdAt' }, revenue: { $sum: '$finalAmount' }, paid: { $sum: '$amountPaid' } } },
+      ]),
+    ]);
+
+    return Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+      const orders = orderCounts.find((o) => o._id === month)?.count ?? 0;
+      const bill = billStats.find((b) => b._id === month);
+      const revenue = bill?.revenue ?? 0;
+      const paid = bill?.paid ?? 0;
+      const pending = revenue - paid;
+      // Refunds aren't a supported concept yet.
+      const refunds = 0;
+      return { month, orders, revenue, paid, pending, refunds, netEarnings: paid - refunds };
+    });
   },
 
   async revenueChart(days = 30) {

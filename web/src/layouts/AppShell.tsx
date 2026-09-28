@@ -40,6 +40,8 @@ import { FadeInOnMount } from '../components/FadeInOnMount';
 import { useGetSettingsQuery } from '../api/settingsApi';
 import { setCurrency } from '../utils/currencyStore';
 import { DRIVER_LOGISTICS_ENABLED } from '../utils/featureFlags';
+import { useAppVersion } from '../hooks/useAppVersion';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 
 const DRAWER_WIDTH = 248;
 
@@ -50,8 +52,9 @@ const NAV_ITEMS = [
   { label: 'Orders', icon: <LocalShippingIcon />, path: '/orders' },
   { label: 'Drivers', icon: <BadgeIcon />, path: '/drivers', driverFeature: true },
   { label: 'Services', icon: <LocalOfferIcon />, path: '/services' },
+  { label: 'Payments', icon: <PaymentsOutlinedIcon />, path: '/payments', v2Feature: true },
   { label: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
-].filter((item) => !item.driverFeature || DRIVER_LOGISTICS_ENABLED);
+];
 
 export function AppShell() {
   const dispatch = useAppDispatch();
@@ -61,6 +64,10 @@ export function AppShell() {
   const themeMode = useAppSelector((state) => state.ui.themeMode);
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const { data: settings } = useGetSettingsQuery();
+  const appVersion = useAppVersion();
+  const navItems = NAV_ITEMS.filter(
+    (item) => (!item.driverFeature || DRIVER_LOGISTICS_ENABLED) && (!item.v2Feature || appVersion === 2),
+  );
 
   useEffect(() => {
     if (settings?.currency) setCurrency(settings.currency);
@@ -86,7 +93,7 @@ export function AppShell() {
         </Toolbar>
         <Divider />
         <List sx={{ px: 1, pt: 1 }}>
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <ListItemButton
               key={item.path}
               component={RouterLink}

@@ -1,5 +1,6 @@
 import { Order, IOrder } from '../models/Order';
 import { Bill, PaymentStatus } from '../models/Bill';
+import { Customer } from '../models/Customer';
 import { OrderStage } from '../models/orderStages';
 
 interface OrderListFilter {
@@ -9,6 +10,17 @@ interface OrderListFilter {
   isExpress?: boolean;
   updatedToday?: boolean;
   paymentStatus?: PaymentStatus;
+  search?: string;
+  service?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+function intersectIds(a: unknown[], b: unknown[]): unknown[] {
+  const bSet = new Set(b.map(String));
+  return a.filter((id) => bSet.has(String(id)));
 }
 
 function startOfToday(): Date {
@@ -47,8 +59,33 @@ export const orderRepository = {
     if (filter.driver) query.driver = filter.driver;
     if (filter.isExpress) query.$or = [{ isExpressPickup: true }, { isExpressDelivery: true }];
     if (filter.updatedToday) query.updatedAt = { $gte: startOfToday() };
-    if (filter.paymentStatus) {
-      const billIds = await Bill.find({ paymentStatus: filter.paymentStatus }).distinct('_id');
+    if (filter.service) query['collectedItems.service'] = filter.service;
+    if (filter.dateFrom || filter.dateTo) {
+      const range: Record<string, Date> = {};
+      if (filter.dateFrom) range.$gte = new Date(filter.dateFrom);
+      if (filter.dateTo) range.$lte = new Date(filter.dateTo);
+      query.createdAt = range;
+    }
+    if (filter.search) {
+      const regex = new RegExp(filter.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      const customerIds = await Customer.find({ $or: [{ name: regex }, { mobileNumber: regex }] }).distinct('_id');
+      query.customer = { $in: customerIds };
+    }
+
+    // paymentStatus and amount-range both narrow by bill — resolve each to a bill-id
+    // set and intersect them, rather than clobbering each other on `query.bill`.
+    if (filter.paymentStatus || filter.minAmount !== undefined || filter.maxAmount !== undefined) {
+      let billIds: unknown[] | undefined;
+      if (filter.paymentStatus) {
+        billIds = await Bill.find({ paymentStatus: filter.paymentStatus }).distinct('_id');
+      }
+      if (filter.minAmount !== undefined || filter.maxAmount !== undefined) {
+        const amountRange: Record<string, number> = {};
+        if (filter.minAmount !== undefined) amountRange.$gte = filter.minAmount;
+        if (filter.maxAmount !== undefined) amountRange.$lte = filter.maxAmount;
+        const amountBillIds = await Bill.find({ finalAmount: amountRange }).distinct('_id');
+        billIds = billIds ? intersectIds(billIds, amountBillIds) : amountBillIds;
+      }
       query.bill = { $in: billIds };
     }
 
