@@ -26,6 +26,10 @@ export const billApi = apiSlice.injectEndpoints({
       query: ({ id, discountAmount, reason }) => ({ url: `/bills/${id}/discount`, method: 'PATCH', data: { discountAmount, reason } }),
       invalidatesTags: ['Bill'],
     }),
+    removeDiscount: builder.mutation<Bill, { id: string }>({
+      query: ({ id }) => ({ url: `/bills/${id}/discount`, method: 'DELETE' }),
+      invalidatesTags: ['Bill'],
+    }),
     recordPayment: builder.mutation<{ bill: Bill; payments: Payment[] }, { id: string; splits: PaymentLeg[] }>({
       query: ({ id, splits }) => ({ url: `/bills/${id}/payments`, method: 'POST', data: { splits } }),
       invalidatesTags: ['Bill', 'Order'],
@@ -37,5 +41,6 @@ export const {
   useGetBillByIdQuery,
   useGenerateBillMutation,
   useApplyDiscountMutation,
+  useRemoveDiscountMutation,
   useRecordPaymentMutation,
 } = billApi;

@@ -22,7 +22,7 @@ import {
   useAdvanceOrderStatusMutation,
   useUpdateOrderItemsMutation,
 } from '../../api/orderApi';
-import { useGenerateBillMutation, useGetBillByIdQuery } from '../../api/billApi';
+import { useGenerateBillMutation, useGetBillByIdQuery, useRemoveDiscountMutation } from '../../api/billApi';
 import { useGetPickupByIdQuery, useUpdatePickupItemsMutation } from '../../api/pickupApi';
 import { useListDriversQuery } from '../../api/driverApi';
 import { OrderStageTimeline } from '../../components/OrderStageTimeline';
@@ -59,6 +59,7 @@ export function OrderDetailPage() {
   const { data: bill } = useGetBillByIdQuery(billId!, { skip: !billId });
   const { data: settings } = useGetSettingsQuery();
   const [generateBill, { isLoading: isGeneratingBill }] = useGenerateBillMutation();
+  const [removeDiscount, { isLoading: isRemovingDiscount }] = useRemoveDiscountMutation();
   const generateAttemptedRef = useRef<string | null>(null);
 
   const pickupId = order ? getId(order.pickup) : undefined;
@@ -302,10 +303,23 @@ export function OrderDetailPage() {
                         Print Receipt
                       </Button>
                     </Grid>
-                    {bill.paymentStatus === 'PENDING' && (
+                    {bill.paymentStatus === 'PENDING' && !bill.discount && (
                       <Grid size={6}>
                         <Button fullWidth variant="outlined" onClick={() => setDiscountOpen(true)}>
                           Apply Discount
+                        </Button>
+                      </Grid>
+                    )}
+                    {bill.paymentStatus === 'PENDING' && bill.discount && (
+                      <Grid size={6}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          color="error"
+                          disabled={isRemovingDiscount}
+                          onClick={() => removeDiscount({ id: bill._id })}
+                        >
+                          {isRemovingDiscount ? 'Removing…' : 'Remove Discount'}
                         </Button>
                       </Grid>
                     )}
@@ -489,10 +503,23 @@ export function OrderDetailPage() {
                         Print Receipt
                       </Button>
                     </Grid>
-                    {bill.paymentStatus === 'PENDING' && (
+                    {bill.paymentStatus === 'PENDING' && !bill.discount && (
                       <Grid size={6}>
                         <Button fullWidth variant="outlined" onClick={() => setDiscountOpen(true)}>
                           Apply Discount
+                        </Button>
+                      </Grid>
+                    )}
+                    {bill.paymentStatus === 'PENDING' && bill.discount && (
+                      <Grid size={6}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          color="error"
+                          disabled={isRemovingDiscount}
+                          onClick={() => removeDiscount({ id: bill._id })}
+                        >
+                          {isRemovingDiscount ? 'Removing…' : 'Remove Discount'}
                         </Button>
                       </Grid>
                     )}
