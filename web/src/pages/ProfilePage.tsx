@@ -391,7 +391,7 @@ export function ProfilePage() {
         </Card>
       )}
 
-      {user?.role === 'ROOT_ADMIN' && (
+      {(user?.role === 'ROOT_ADMIN' || user?.role === 'ADMIN') && (
         <Card>
           <CardContent>
             <Typography variant="subtitle1" fontWeight={700} gutterBottom>

@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ok } from '../utils/apiResponse';
-import { ApiError } from '../utils/ApiError';
 import { getSettings, Settings } from '../models/Settings';
 import { recordAudit } from '../audit/recordAudit';
 
@@ -21,10 +20,6 @@ export const getPublicAppInfoHandler = asyncHandler(async (_req: Request, res: R
 });
 
 export const updateSettingsHandler = asyncHandler(async (req: Request, res: Response) => {
-  if (req.body.appVersion !== undefined && req.user!.role !== 'ROOT_ADMIN') {
-    throw ApiError.forbidden('Only the Root Admin can change the app version');
-  }
-
   const before = await getSettings();
   const updated = await Settings.findByIdAndUpdate(before._id, req.body, { new: true });
 
