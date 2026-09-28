@@ -11,6 +11,7 @@ router.use(requireAuth);
 router.post('/orders/:orderId/generate', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(generateBillSchema), billController.generateBill);
 router.get('/:id', billController.getBillById);
 router.patch('/:id/discount', requireRole('ROOT_ADMIN', 'ADMIN'), validateBody(applyDiscountSchema), billController.applyDiscount);
+router.delete('/:id/discount', requireRole('ROOT_ADMIN', 'ADMIN'), billController.removeDiscount);
 router.post('/:id/payments', requireRole('ROOT_ADMIN', 'ADMIN', 'DRIVER'), validateBody(recordPaymentSchema), billController.recordPayment);
 
 export default router;

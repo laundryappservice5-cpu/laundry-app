@@ -144,6 +144,23 @@ export const billService = {
     return bill;
   },
 
+  async removeDiscount(actorId: string, actorRole: UserRole, billId: string) {
+    const bill = await billRepository.findById(billId);
+    if (!bill) throw ApiError.notFound('Bill not found');
+    if (!bill.discount) throw ApiError.badRequest('This bill has no discount to remove');
+    if (bill.paymentStatus === 'PAID') throw ApiError.badRequest('Cannot modify an already paid bill');
+    if (bill.amountPaid > 0) throw ApiError.badRequest('Cannot remove a discount after a payment has been recorded');
+
+    const before = bill.discount;
+    bill.finalAmount = bill.discount.originalAmount;
+    bill.discount = undefined;
+    await bill.save();
+
+    await recordAudit({ actor: actorId, actorRole, action: 'REMOVE_DISCOUNT', entityType: 'Bill', entityId: bill._id, before });
+
+    return bill;
+  },
+
   async recordPayment(
     actorId: string,
     actorRole: UserRole,

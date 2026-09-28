@@ -22,7 +22,7 @@ import {
   useAdvanceOrderStatusMutation,
   useUpdateOrderItemsMutation,
 } from '../../api/orderApi';
-import { useGenerateBillMutation, useGetBillByIdQuery } from '../../api/billApi';
+import { useGenerateBillMutation, useGetBillByIdQuery, useRemoveDiscountMutation } from '../../api/billApi';
 import { useGetSettingsQuery } from '../../api/settingsApi';
 import { ExpressBadge } from '../../components/ExpressBadge';
 import { OrderStageChip } from '../../components/StatusChip';
@@ -48,6 +48,7 @@ export function OrderDetailV2Page() {
   const { data: bill } = useGetBillByIdQuery(billId!, { skip: !billId });
   const { data: settings } = useGetSettingsQuery();
   const [generateBill, { isLoading: isGeneratingBill }] = useGenerateBillMutation();
+  const [removeDiscount, { isLoading: isRemovingDiscount }] = useRemoveDiscountMutation();
   const generateAttemptedRef = useRef<string | null>(null);
 
   const [advanceConfirmOpen, setAdvanceConfirmOpen] = useState(false);
@@ -276,10 +277,25 @@ export function OrderDetailV2Page() {
                         <Typography variant="body2">{bill.paymentMethod}</Typography>
                       </Stack>
                     )}
+                    {bill.discount && (
+                      <Stack direction="row" justifyContent="space-between">
+                        <Typography variant="body2" color="success.main">
+                          Discount ({bill.discount.reason})
+                        </Typography>
+                        <Typography variant="body2" color="success.main">
+                          −{formatCurrency(bill.discount.discountAmount)}
+                        </Typography>
+                      </Stack>
+                    )}
                     <Divider sx={{ my: 0.5 }} />
-                    {bill.paymentStatus === 'PENDING' && (
+                    {bill.paymentStatus === 'PENDING' && !bill.discount && (
                       <Button size="small" onClick={() => setDiscountOpen(true)}>
                         Apply Discount
+                      </Button>
+                    )}
+                    {bill.paymentStatus === 'PENDING' && bill.discount && (
+                      <Button size="small" color="error" disabled={isRemovingDiscount} onClick={() => removeDiscount({ id: bill._id })}>
+                        {isRemovingDiscount ? 'Removing…' : 'Remove Discount'}
                       </Button>
                     )}
                   </Stack>
